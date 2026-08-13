@@ -19,14 +19,13 @@ require_execute "${1:-}"
 executor="$(require_funded_executor)"
 printf 'Executor: %s\n' "$executor"
 
-result="$(forge create \
+result="$(forge create contracts/src/ContinuityController.sol:ContinuityController \
   --root "$ROOT" \
   --broadcast \
   --json \
   --rpc-url "$CHAIN_URL" \
   --private-key "$DEPLOYMENT_PRIVATE_KEY" \
-  --constructor-args "$FLARE_TEE_MANAGER" "$APPLICATION_ID" \
-  contracts/src/ContinuityController.sol:ContinuityController)"
+  --constructor-args "$FLARE_TEE_MANAGER" "$APPLICATION_ID")"
 
 controller="$(jq -r '.deployedTo // empty' <<<"$result")"
 is_address "$controller" || die "forge did not report the deployed controller address"
