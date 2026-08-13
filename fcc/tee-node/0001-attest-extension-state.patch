@@ -1,0 +1,255 @@
+diff --git a/internal/extensionstate/state.go b/internal/extensionstate/state.go
+new file mode 100644
+index 0000000..1041fd9
+--- /dev/null
++++ b/internal/extensionstate/state.go
+@@ -0,0 +1,101 @@
++package extensionstate
++
++import (
++	"bytes"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"net/http"
++	"time"
++
++	"github.com/ethereum/go-ethereum/common"
++	"github.com/ethereum/go-ethereum/common/hexutil"
++	"github.com/flare-foundation/tee-node/pkg/types"
++)
++
++const (
++	defaultTimeout          = 2 * time.Second
++	maxStateResponseBytes   = 1 << 20
++	extensionStateRoutePath = "/state"
++)
++
++// Provider reads a custom extension's attested state over the enclave-local
++// loopback interface. Its endpoint is deliberately not configurable by URL so
++// extension state retrieval cannot become an SSRF primitive.
++type Provider struct {
++	endpoint string
++	client   *http.Client
++	maxBytes int64
++}
++
++type response struct {
++	StateVersion *common.Hash   `json:"stateVersion"`
++	State        *hexutil.Bytes `json:"state"`
++}
++
++// New creates a provider for the extension process listening on extensionPort.
++func New(extensionPort int) *Provider {
++	return &Provider{
++		endpoint: fmt.Sprintf("http://127.0.0.1:%d%s", extensionPort, extensionStateRoutePath),
++		client: &http.Client{
++			Timeout: defaultTimeout,
++			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
++				return errors.New("redirects are not allowed")
++			},
++		},
++		maxBytes: maxStateResponseBytes,
++	}
++}
++
++// State returns the custom extension state in the exact TeeState fields that
++// FCC includes in an availability attestation. System state remains owned by
++// tee-node and is empty for the current custom-extension path.
++func (p *Provider) State() (types.TeeState, error) {
++	resp, err := p.client.Get(p.endpoint)
++	if err != nil {
++		return types.TeeState{}, fmt.Errorf("fetching extension state: %w", err)
++	}
++	defer resp.Body.Close()
++
++	if resp.StatusCode != http.StatusOK {
++		return types.TeeState{}, fmt.Errorf("fetching extension state: unexpected HTTP status %d", resp.StatusCode)
++	}
++
++	body, err := io.ReadAll(io.LimitReader(resp.Body, p.maxBytes+1))
++	if err != nil {
++		return types.TeeState{}, fmt.Errorf("reading extension state: %w", err)
++	}
++	if int64(len(body)) > p.maxBytes {
++		return types.TeeState{}, fmt.Errorf("reading extension state: response exceeds %d bytes", p.maxBytes)
++	}
++
++	var state response
++	decoder := json.NewDecoder(bytes.NewReader(body))
++	decoder.DisallowUnknownFields()
++	if err := decoder.Decode(&state); err != nil {
++		return types.TeeState{}, fmt.Errorf("decoding extension state: %w", err)
++	}
++	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
++		if err == nil {
++			err = errors.New("multiple JSON values")
++		}
++		return types.TeeState{}, fmt.Errorf("decoding extension state: trailing data: %w", err)
++	}
++	if state.StateVersion == nil {
++		return types.TeeState{}, errors.New("decoding extension state: stateVersion is required")
++	}
++	if state.State == nil {
++		return types.TeeState{}, errors.New("decoding extension state: state is required")
++	}
++	if *state.StateVersion == (common.Hash{}) && len(*state.State) != 0 {
++		return types.TeeState{}, errors.New("decoding extension state: zero stateVersion requires empty state")
++	}
++
++	return types.TeeState{
++		SystemState:        hexutil.Bytes{},
++		SystemStateVersion: common.Hash{},
++		State:              *state.State,
++		StateVersion:       *state.StateVersion,
++	}, nil
++}
+diff --git a/internal/extensionstate/state_test.go b/internal/extensionstate/state_test.go
+new file mode 100644
+index 0000000..eea2cbf
+--- /dev/null
++++ b/internal/extensionstate/state_test.go
+@@ -0,0 +1,124 @@
++package extensionstate
++
++import (
++	"fmt"
++	"net"
++	"net/http"
++	"testing"
++	"time"
++
++	"github.com/ethereum/go-ethereum/common"
++	"github.com/stretchr/testify/require"
++)
++
++const testVersion = "0x434f4e54494e554954595f53544154455f563100000000000000000000000000"
++
++func testProvider(t *testing.T, handler http.Handler) *Provider {
++	t.Helper()
++
++	listener, err := net.Listen("tcp", "127.0.0.1:0")
++	require.NoError(t, err)
++
++	server := &http.Server{Handler: handler}
++	go func() {
++		_ = server.Serve(listener)
++	}()
++	t.Cleanup(func() {
++		require.NoError(t, server.Close())
++	})
++
++	port := listener.Addr().(*net.TCPAddr).Port
++	return New(port)
++}
++
++func TestState(t *testing.T) {
++	provider := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		require.Equal(t, extensionStateRoutePath, r.URL.Path)
++		_, _ = fmt.Fprintf(w, `{"stateVersion":"%s","state":"0x1234"}`, testVersion)
++	}))
++
++	state, err := provider.State()
++	require.NoError(t, err)
++	require.Equal(t, common.HexToHash(testVersion), state.StateVersion)
++	require.Equal(t, []byte{0x12, 0x34}, []byte(state.State))
++	require.Empty(t, state.SystemState)
++	require.Zero(t, state.SystemStateVersion)
++}
++
++func TestStateAllowsCanonicalEmptyState(t *testing.T) {
++	provider := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
++		_, _ = w.Write([]byte(`{"stateVersion":"0x0000000000000000000000000000000000000000000000000000000000000000","state":"0x"}`))
++	}))
++
++	state, err := provider.State()
++	require.NoError(t, err)
++	require.Empty(t, state.State)
++	require.Zero(t, state.StateVersion)
++}
++
++func TestStateRejectsInvalidResponses(t *testing.T) {
++	tests := []struct {
++		name string
++		body string
++		want string
++	}{
++		{name: "malformed JSON", body: `{`, want: "decoding extension state"},
++		{name: "unknown field", body: fmt.Sprintf(`{"stateVersion":"%s","state":"0x","extra":true}`, testVersion), want: "unknown field"},
++		{name: "missing version", body: `{"state":"0x"}`, want: "stateVersion is required"},
++		{name: "missing state", body: fmt.Sprintf(`{"stateVersion":"%s"}`, testVersion), want: "state is required"},
++		{name: "invalid version length", body: `{"stateVersion":"0x12","state":"0x"}`, want: "hex string has length"},
++		{name: "invalid state hex", body: fmt.Sprintf(`{"stateVersion":"%s","state":"0xzz"}`, testVersion), want: "invalid hex"},
++		{name: "nonempty zero version", body: `{"stateVersion":"0x0000000000000000000000000000000000000000000000000000000000000000","state":"0x01"}`, want: "zero stateVersion requires empty state"},
++		{name: "second JSON value", body: fmt.Sprintf(`{"stateVersion":"%s","state":"0x"} {}`, testVersion), want: "trailing data"},
++	}
++
++	for _, test := range tests {
++		t.Run(test.name, func(t *testing.T) {
++			provider := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
++				_, _ = w.Write([]byte(test.body))
++			}))
++
++			_, err := provider.State()
++			require.ErrorContains(t, err, test.want)
++		})
++	}
++}
++
++func TestStateRejectsHTTPError(t *testing.T) {
++	provider := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
++		http.Error(w, "unavailable", http.StatusServiceUnavailable)
++	}))
++
++	_, err := provider.State()
++	require.ErrorContains(t, err, "unexpected HTTP status 503")
++}
++
++func TestStateRejectsRedirect(t *testing.T) {
++	provider := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		http.Redirect(w, r, "http://example.com/state", http.StatusFound)
++	}))
++
++	_, err := provider.State()
++	require.ErrorContains(t, err, "redirects are not allowed")
++}
++
++func TestStateRejectsOversizedResponse(t *testing.T) {
++	provider := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
++		_, _ = w.Write(make([]byte, 65))
++	}))
++	provider.maxBytes = 64
++
++	_, err := provider.State()
++	require.ErrorContains(t, err, "response exceeds 64 bytes")
++}
++
++func TestStateTimesOut(t *testing.T) {
++	provider := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
++		time.Sleep(50 * time.Millisecond)
++		_, _ = fmt.Fprintf(w, `{"stateVersion":"%s","state":"0x"}`, testVersion)
++	}))
++	provider.client.Timeout = time.Millisecond
++
++	_, err := provider.State()
++	require.ErrorContains(t, err, "fetching extension state")
++}
+diff --git a/pkg/server/server.go b/pkg/server/server.go
+index 8c9f675..c44c430 100644
+--- a/pkg/server/server.go
++++ b/pkg/server/server.go
+@@ -6,0 +7 @@ import (
++	"github.com/flare-foundation/tee-node/internal/extensionstate"
+@@ -18 +19 @@ import (
+-func initialize(configPort int) (*node.Node, *walletstorage.Storage, *policy.Storage, *settings.ConfigServer, error) {
++func initialize(configPort int, state node.State) (*node.Node, *walletstorage.Storage, *policy.Storage, *settings.ConfigServer, error) {
+@@ -20 +21 @@ func initialize(configPort int) (*node.Node, *walletstorage.Storage, *policy.Sto
+-	teeNode, err := node.Initialize(node.ZeroState{})
++	teeNode, err := node.Initialize(state)
+@@ -43 +44 @@ func StartServerPMW(configPort int) {
+-	teeNode, ws, ps, cs, err := initialize(configPort)
++	teeNode, ws, ps, cs, err := initialize(configPort, node.ZeroState{})
+@@ -57 +58 @@ func StartServerExtension(configPort, signPort, extensionPort int) {
+-	teeNode, ws, ps, cs, err := initialize(configPort)
++	teeNode, ws, ps, cs, err := initialize(configPort, extensionstate.New(extensionPort))
