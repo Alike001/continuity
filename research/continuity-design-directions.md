@@ -1,7 +1,8 @@
 # Continuity Phase 3 Design Directions
 
 Date: 2026-08-13
-Status: Awaiting user selection
+Status: Phase 3 complete
+Selected direction: A, Recovery Runbook
 
 ## Judging priority
 

@@ -6,7 +6,7 @@ A custom FCC extension can keep private application state in memory, but that st
 
 ## Current status
 
-Phase 2 scope is approved. Phase 3 design direction is in progress. No implementation claim has been made yet.
+Phase 2 scope and Phase 3 design are approved. Recovery Runbook is the selected product surface. Phase 4 has not started, and no implementation claim has been made yet.
 
 The first release is limited to one reference extension, two registered simulated TEE instances on Coston2, manual recovery, and real rollback and fork rejection checks. Simulated TEE proves the FCC integration and state protocol behavior. It does not provide hardware-backed confidentiality.
 
