@@ -213,7 +213,20 @@ contract ContinuityController {
         uint64 nonce = nextNonce;
         uint64 epoch = latestEpoch + 1;
         bytes32 parentRoot = latestStateRoot;
-        bytes memory message = abi.encode(applicationId, nonce, epoch, parentRoot, recoveryTee, encryptedEntry);
+        IFlareTeeManager.PublicKey memory recoveryPublicKey = teeManager.getPublicKey(recoveryTee);
+        if (recoveryPublicKey.x == bytes32(0) || recoveryPublicKey.y == bytes32(0)) {
+            revert InvalidMachinePair();
+        }
+        bytes memory message = abi.encode(
+            applicationId,
+            nonce,
+            epoch,
+            parentRoot,
+            recoveryTee,
+            recoveryPublicKey.x,
+            recoveryPublicKey.y,
+            encryptedEntry
+        );
 
         actionId = _sendInstruction(activeTee, OP_SNAPSHOT, message);
         pendingSnapshots[actionId] = PendingSnapshot({
@@ -245,7 +258,7 @@ contract ContinuityController {
             revert InvalidSignature();
         }
 
-        SnapshotResult memory result = abi.decode(resultData, (SnapshotResult));
+        SnapshotResult memory result = _decodeSnapshotResult(resultData);
         if (
             result.applicationId != applicationId || result.sourceTee != pending.sourceTee
                 || result.recoveryTee != pending.recoveryTee || result.nonce != pending.nonce
@@ -352,7 +365,7 @@ contract ContinuityController {
             revert InvalidSignature();
         }
 
-        RecoveryResult memory result = abi.decode(resultData, (RecoveryResult));
+        RecoveryResult memory result = _decodeRecoveryResult(resultData);
         if (
             result.applicationId != applicationId || result.recoveryTee != pending.recoveryTee
                 || result.epoch != pending.epoch || result.stateRoot != pending.stateRoot
@@ -475,6 +488,24 @@ contract ContinuityController {
         consumedResults[actionId] = true;
         delete pendingRecoveries[actionId];
         pendingRecoveryAction = bytes32(0);
+    }
+
+    function _decodeSnapshotResult(bytes calldata data) private pure returns (SnapshotResult memory result) {
+        (
+            result.applicationId,
+            result.sourceTee,
+            result.recoveryTee,
+            result.nonce,
+            result.epoch,
+            result.parentRoot,
+            result.stateRoot,
+            result.ciphertext
+        ) = abi.decode(data, (bytes32, address, address, uint64, uint64, bytes32, bytes32, bytes));
+    }
+
+    function _decodeRecoveryResult(bytes calldata data) private pure returns (RecoveryResult memory result) {
+        (result.applicationId, result.recoveryTee, result.epoch, result.stateRoot, result.ciphertextDigest) =
+            abi.decode(data, (bytes32, address, uint64, bytes32, bytes32));
     }
 
     function _validateNextNode(uint64 epoch, bytes32 parentRoot) private view {

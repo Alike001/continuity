@@ -75,6 +75,10 @@ contract MockFlareTeeManager is IFlareTeeManager {
         return statuses[teeId];
     }
 
+    function getPublicKey(address teeId) external pure returns (PublicKey memory publicKey) {
+        publicKey = PublicKey({ x: bytes32(uint256(uint160(teeId)) + 1), y: bytes32(uint256(uint160(teeId)) + 2) });
+    }
+
     function getTeeMachineWithAttestationData(address teeId)
         external
         pure
@@ -118,25 +122,6 @@ contract ContinuityControllerTest {
     address private activeTee;
     address private recoveryTee;
 
-    struct SnapshotResult {
-        bytes32 applicationId;
-        address sourceTee;
-        address recoveryTee;
-        uint64 nonce;
-        uint64 epoch;
-        bytes32 parentRoot;
-        bytes32 stateRoot;
-        bytes ciphertext;
-    }
-
-    struct RecoveryResult {
-        bytes32 applicationId;
-        address recoveryTee;
-        uint64 epoch;
-        bytes32 stateRoot;
-        bytes32 ciphertextDigest;
-    }
-
     function setUp() public {
         activeTee = vm.addr(ACTIVE_KEY);
         recoveryTee = vm.addr(RECOVERY_KEY);
@@ -173,6 +158,7 @@ contract ContinuityControllerTest {
         _assertEq(manager.lastOpType(), controller.OP_TYPE(), "wrong op type");
         _assertEq(manager.lastOpCommand(), controller.OP_SNAPSHOT(), "wrong command");
         _assertEq(manager.lastValue(), 7, "fee not forwarded");
+        _assertSnapshotMessage(encryptedEntry);
 
         bytes32 parent = controller.genesisRoot();
         bytes32 root = keccak256("state-1");
@@ -188,6 +174,27 @@ contract ContinuityControllerTest {
             controller.verifyTeeState(activeTee, controller.STATE_VERSION(), abi.encode(APP_ID, uint64(1), root)),
             "committed active state rejected"
         );
+    }
+
+    function _assertSnapshotMessage(bytes memory encryptedEntry) private view {
+        (
+            bytes32 messageApplicationId,
+            uint64 messageNonce,
+            uint64 messageEpoch,
+            bytes32 messageParent,
+            address messageRecoveryTee,
+            bytes32 messagePublicKeyX,
+            bytes32 messagePublicKeyY,
+            bytes memory messageEncryptedEntry
+        ) = abi.decode(manager.lastMessage(), (bytes32, uint64, uint64, bytes32, address, bytes32, bytes32, bytes));
+        _assertEq(messageApplicationId, APP_ID, "wrong message application");
+        _assertEq(messageNonce, 1, "wrong message nonce");
+        _assertEq(messageEpoch, 1, "wrong message epoch");
+        _assertEq(messageParent, controller.genesisRoot(), "wrong message parent");
+        _assertEq(messageRecoveryTee, recoveryTee, "wrong message recovery TEE");
+        _assertEq(messagePublicKeyX, bytes32(uint256(uint160(recoveryTee)) + 1), "wrong public key x");
+        _assertEq(messagePublicKeyY, bytes32(uint256(uint160(recoveryTee)) + 2), "wrong public key y");
+        _assertEq(keccak256(messageEncryptedEntry), keccak256(encryptedEntry), "wrong encrypted entry");
     }
 
     function testRejectsReplayedResult() public {
@@ -429,26 +436,11 @@ contract ContinuityControllerTest {
         view
         returns (bytes memory)
     {
-        return abi.encode(
-            SnapshotResult({
-                applicationId: APP_ID,
-                sourceTee: activeTee,
-                recoveryTee: recoveryTee,
-                nonce: nonce,
-                epoch: epoch,
-                parentRoot: parent,
-                stateRoot: root,
-                ciphertext: ciphertext
-            })
-        );
+        return abi.encode(APP_ID, activeTee, recoveryTee, nonce, epoch, parent, root, ciphertext);
     }
 
     function _recoveryData(uint64 epoch, bytes32 root, bytes32 digest) private view returns (bytes memory) {
-        return abi.encode(
-            RecoveryResult({
-                applicationId: APP_ID, recoveryTee: recoveryTee, epoch: epoch, stateRoot: root, ciphertextDigest: digest
-            })
-        );
+        return abi.encode(APP_ID, recoveryTee, epoch, root, digest);
     }
 
     function _sign(uint256 privateKey, bytes memory data, bytes32 actionId, uint8 status)

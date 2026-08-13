@@ -3,6 +3,11 @@ pragma solidity ^0.8.27;
 
 /// @notice Minimal live FlareTeeManager surface used by Continuity.
 interface IFlareTeeManager {
+    struct PublicKey {
+        bytes32 x;
+        bytes32 y;
+    }
+
     struct TeeMachineWithAttestationData {
         address teeId;
         address initialTeeId;
@@ -28,6 +33,8 @@ interface IFlareTeeManager {
     function getExtensionId(address teeId) external view returns (uint256);
 
     function getTeeMachineStatus(address teeId) external view returns (uint8);
+
+    function getPublicKey(address teeId) external view returns (PublicKey memory publicKey);
 
     function getTeeMachineWithAttestationData(address teeId)
         external
