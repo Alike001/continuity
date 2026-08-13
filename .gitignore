@@ -19,6 +19,8 @@ node_modules/
 dist/
 build/
 coverage/
+contracts/cache/
+contracts/out/
 .next/
 .turbo/
 .cache/

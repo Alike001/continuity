@@ -8,7 +8,7 @@ A custom FCC extension can keep private application state in memory, but that st
 
 Phase 2 scope, Phase 3 design, and the Phase 4 architecture are approved. Recovery Runbook is the selected product surface. Implementation has started with the extension-state boundary, and no Coston2 recovery claim will be made until the two-TEE acceptance gate passes.
 
-The first release is limited to one reference extension, two registered simulated TEE instances on Coston2, manual recovery, and real rollback and fork rejection checks. The first implementation slice adds a tested [tee-node extension-state adapter](fcc/tee-node/README.md) pinned to the current v0.0.24 release. Simulated TEE proves the FCC integration and state protocol behavior. It does not provide hardware-backed confidentiality.
+The first release is limited to one reference extension, two registered simulated TEE instances on Coston2, manual recovery, and real rollback and fork rejection checks. The current implementation includes a tested [tee-node extension-state adapter](fcc/tee-node/README.md) pinned to v0.0.24 and a tested [Continuity controller](contracts/README.md) that verifies FCC state and enforces snapshot lineage. Simulated TEE proves the FCC integration and state protocol behavior. It does not provide hardware-backed confidentiality.
 
 ## Product story
 
