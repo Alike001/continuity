@@ -1,0 +1,27 @@
+# Private operating instructions and session notes
+AGENTS.md
+PROMPT.md
+PROMPTS.md
+design.doc.md
+handoff.md
+log.md
+research-intake.md
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Dependencies, build output, and local tooling
+node_modules/
+dist/
+build/
+coverage/
+.next/
+.turbo/
+.cache/
+.DS_Store
+playwright-report/
+test-results/
