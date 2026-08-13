@@ -13,7 +13,7 @@ require_coston2
 actual_manager="$(cast call "$CONTROLLER_ADDRESS" 'teeManager()(address)' --rpc-url "$CHAIN_URL")"
 [[ "${actual_manager,,}" == "${FLARE_TEE_MANAGER,,}" ]] || die "controller points to $actual_manager"
 
-next_id="$(cast call "$FLARE_TEE_MANAGER" 'nextPublicExtensionId()(uint256)' --rpc-url "$CHAIN_URL")"
+next_id="$(cast call "$FLARE_TEE_MANAGER" 'nextPublicExtensionId()(uint256)' --rpc-url "$CHAIN_URL" | awk '{print $1}')"
 printf 'Extension registration target: %s\n' "$FLARE_TEE_MANAGER"
 printf 'State verifier and instruction sender: %s\n' "$CONTROLLER_ADDRESS"
 printf 'Expected extension ID: %s\n' "$next_id"
@@ -35,7 +35,7 @@ verifier="$(cast call "$FLARE_TEE_MANAGER" 'getTeeExtensionStateVerifier(uint256
 
 cast send "$CONTROLLER_ADDRESS" 'configureExtension(uint256)' "$next_id" \
   --rpc-url "$CHAIN_URL" --private-key "$DEPLOYMENT_PRIVATE_KEY" --confirmations 1 >/dev/null
-configured="$(cast call "$CONTROLLER_ADDRESS" 'extensionId()(uint256)' --rpc-url "$CHAIN_URL")"
+configured="$(cast call "$CONTROLLER_ADDRESS" 'extensionId()(uint256)' --rpc-url "$CHAIN_URL" | awk '{print $1}')"
 [[ "$configured" == "$next_id" ]] || die "controller extension verification failed"
 
 printf 'EXTENSION_ID=%s\n' "$next_id"

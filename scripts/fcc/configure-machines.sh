@@ -22,8 +22,8 @@ recovery="$(tee_id_from_info "$RECOVERY_PROXY_URL")"
 [[ "${primary,,}" != "${recovery,,}" ]] || die "primary and recovery resolve to the same TEE ID"
 
 for item in "$primary" "$recovery"; do
-  actual_extension="$(cast call "$FLARE_TEE_MANAGER" 'getExtensionId(address)(uint256)' "$item" --rpc-url "$CHAIN_URL")"
-  status="$(cast call "$FLARE_TEE_MANAGER" 'getTeeMachineStatus(address)(uint8)' "$item" --rpc-url "$CHAIN_URL")"
+  actual_extension="$(cast call "$FLARE_TEE_MANAGER" 'getExtensionId(address)(uint256)' "$item" --rpc-url "$CHAIN_URL" | awk '{print $1}')"
+  status="$(cast call "$FLARE_TEE_MANAGER" 'getTeeMachineStatus(address)(uint8)' "$item" --rpc-url "$CHAIN_URL" | awk '{print $1}')"
   [[ "$actual_extension" == "$EXTENSION_ID" ]] || die "$item belongs to extension $actual_extension"
   [[ "$status" == "1" ]] || die "$item must be INITIALIZED status 1, got $status"
 done

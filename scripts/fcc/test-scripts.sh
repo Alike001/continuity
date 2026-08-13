@@ -15,7 +15,7 @@ case "$1" in
   to-dec) printf '42\n' ;;
   call)
     case "$3" in
-      'nextPublicExtensionId()(uint256)') printf '42\n' ;;
+      'nextPublicExtensionId()(uint256)') printf '42 [4.2e1]\n' ;;
       'teeManager()(address)') printf '0x1a9C4A0f9D76c0b1D91d22E24E573a9b377618aE\n' ;;
       *) printf '0\n' ;;
     esac

@@ -56,7 +56,7 @@ if [[ "$PHASE" == "initialize" ]]; then
   go run ./cmd/register-tee \
     -a "$ADDRESSES_FILE" -c "$CHAIN_URL" -p "$PROXY_URL" -h "$HOST_URL" \
     -ep "$NORMAL_PROXY_URL" -state "$STATE_FILE" -command r
-  status="$(cast call "$FLARE_TEE_MANAGER" 'getTeeMachineStatus(address)(uint8)' "$tee_id" --rpc-url "$CHAIN_URL")"
+  status="$(cast call "$FLARE_TEE_MANAGER" 'getTeeMachineStatus(address)(uint8)' "$tee_id" --rpc-url "$CHAIN_URL" | awk '{print $1}')"
   [[ "$status" == "1" ]] || die "$ROLE did not reach INITIALIZED status 1, got $status"
   printf '%s is INITIALIZED. Configure both machines before promotion.\n' "$ROLE"
   exit 0
@@ -73,6 +73,6 @@ go run ./cmd/register-tee \
   -a "$ADDRESSES_FILE" -c "$CHAIN_URL" -p "$PROXY_URL" -h "$HOST_URL" \
   -ep "$NORMAL_PROXY_URL" -state "$STATE_FILE" -command Rap
 
-status="$(cast call "$FLARE_TEE_MANAGER" 'getTeeMachineStatus(address)(uint8)' "$tee_id" --rpc-url "$CHAIN_URL")"
+status="$(cast call "$FLARE_TEE_MANAGER" 'getTeeMachineStatus(address)(uint8)' "$tee_id" --rpc-url "$CHAIN_URL" | awk '{print $1}')"
 [[ "$status" == "2" ]] || die "$ROLE did not reach PRODUCTION status 2, got $status"
 printf '%s is PRODUCTION with an accepted Continuity genesis state.\n' "$ROLE"
