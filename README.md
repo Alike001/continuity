@@ -6,7 +6,7 @@ A custom FCC extension can keep private application state in memory, but that st
 
 ## Current status
 
-Phase 2 scope and Phase 3 design are approved. Recovery Runbook is the selected product surface. Phase 4 has not started, and no implementation claim has been made yet.
+Phase 2 scope, Phase 3 design, and the Phase 4 architecture are approved. Recovery Runbook is the selected product surface. Implementation has started with the extension-state boundary, and no Coston2 recovery claim will be made until the two-TEE acceptance gate passes.
 
 The first release is limited to one reference extension, two registered simulated TEE instances on Coston2, manual recovery, and real rollback and fork rejection checks. Simulated TEE proves the FCC integration and state protocol behavior. It does not provide hardware-backed confidentiality.
 
@@ -14,4 +14,4 @@ The first release is limited to one reference extension, two registered simulate
 
 Stateful FCC apps lose private state when an enclave dies. Continuity restores the latest encrypted state and proves it was not rolled back or forked.
 
-See [the approved scope](research/continuity-scope.md) and [the Flare domain research](research/domain-knowledge.md).
+See [the approved scope](research/continuity-scope.md), [the architecture](architecture.md), and [the Flare domain research](research/domain-knowledge.md).
