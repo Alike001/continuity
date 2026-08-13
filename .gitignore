@@ -27,3 +27,6 @@ contracts/out/
 .DS_Store
 playwright-report/
 test-results/
+.fcc-work/
+fcc/deploy/generated/
+fcc/deploy/proxy-config/

@@ -253,3 +253,41 @@ index 8c9f675..c44c430 100644
 @@ -57 +58 @@ func StartServerExtension(configPort, signPort, extensionPort int) {
 -	teeNode, ws, ps, cs, err := initialize(configPort)
 +	teeNode, ws, ps, cs, err := initialize(configPort, extensionstate.New(extensionPort))
+diff --git a/pkg/server/continuity.go b/pkg/server/continuity.go
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/pkg/server/continuity.go
+@@ -0,0 +1,32 @@
++package server
++
++import (
++	"fmt"
++
++	"github.com/ethereum/go-ethereum/common"
++	"github.com/flare-foundation/go-flare-common/pkg/logger"
++	signserver "github.com/flare-foundation/tee-node/internal/extension/server"
++	"github.com/flare-foundation/tee-node/internal/extensionstate"
++	"github.com/flare-foundation/tee-node/internal/router"
++)
++
++// StartServerExtensionWithTeeID starts the custom-extension node path and
++// returns the public address derived from the node's fresh in-memory key. It
++// lets an extension bind action identity checks to the node without receiving
++// or reconstructing the private key.
++func StartServerExtensionWithTeeID(configPort, signPort, extensionPort int) (common.Address, error) {
++	teeNode, ws, ps, cs, err := initialize(configPort, extensionstate.New(extensionPort))
++	if err != nil {
++		return common.Address{}, fmt.Errorf("node initialization failed: %w", err)
++	}
++
++	go func() {
++		if err := signserver.NewSignServer(signPort, teeNode, ws, cs.ProxyURL).Serve(); err != nil {
++			// Match the existing startup path while returning identity synchronously.
++			logger.Errorf("extension sign server error: %v", err)
++		}
++	}()
++	go router.NewForwardRouter(teeNode, ws, ps, extensionPort, cs.ProxyURL).Run(teeNode)
++
++	return teeNode.TeeID(), nil
++}

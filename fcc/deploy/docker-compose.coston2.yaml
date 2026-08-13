@@ -1,0 +1,66 @@
+name: continuity-fcc
+
+x-tee-environment: &tee-environment
+  MODE: "1"
+  CHAIN_URL: ${CHAIN_URL:-https://coston2-api.flare.network/ext/C/rpc}
+  CHAIN_ID: "114"
+  INITIAL_OWNER: ${INITIAL_OWNER:?INITIAL_OWNER is required}
+  EXTENSION_ID: ${EXTENSION_ID:?EXTENSION_ID is required}
+  APPLICATION_ID: ${APPLICATION_ID:?APPLICATION_ID is required}
+  GOVERNANCE_SIGNERS: ${GOVERNANCE_SIGNERS:-${INITIAL_OWNER}}
+  GOVERNANCE_THRESHOLD: ${GOVERNANCE_THRESHOLD:-1}
+  CONFIG_PORT: "5501"
+  SIGN_PORT: "7701"
+  EXTENSION_PORT: "7702"
+  SIMULATED_TEE: "true"
+
+services:
+  primary-redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    tmpfs:
+      - /data
+
+  primary-proxy:
+    image: ${TEE_PROXY_IMAGE:-local/tee-proxy:v0.0.18}
+    environment:
+      PROXY_PRIVATE_KEY: ${PRIMARY_PROXY_PRIVATE_KEY:?PRIMARY_PROXY_PRIVATE_KEY is required}
+    volumes:
+      - ./proxy-config/primary.toml:/app/config/config.toml:ro
+    ports:
+      - "127.0.0.1:${PRIMARY_PROXY_PORT:-6674}:6664"
+    depends_on:
+      - primary-redis
+
+  primary-tee:
+    image: ${CONTINUITY_IMAGE:-continuity-tee:v0.1.0}
+    environment:
+      <<: *tee-environment
+      PROXY_URL: http://primary-proxy:6663
+    depends_on:
+      - primary-proxy
+
+  recovery-redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    tmpfs:
+      - /data
+
+  recovery-proxy:
+    image: ${TEE_PROXY_IMAGE:-local/tee-proxy:v0.0.18}
+    environment:
+      PROXY_PRIVATE_KEY: ${RECOVERY_PROXY_PRIVATE_KEY:?RECOVERY_PROXY_PRIVATE_KEY is required}
+    volumes:
+      - ./proxy-config/recovery.toml:/app/config/config.toml:ro
+    ports:
+      - "127.0.0.1:${RECOVERY_PROXY_PORT:-6684}:6664"
+    depends_on:
+      - recovery-redis
+
+  recovery-tee:
+    image: ${CONTINUITY_IMAGE:-continuity-tee:v0.1.0}
+    environment:
+      <<: *tee-environment
+      PROXY_URL: http://recovery-proxy:6663
+    depends_on:
+      - recovery-proxy

@@ -1,0 +1,33 @@
+.git
+.github
+.agents
+.codex
+.fcc-work
+.env
+.env.*
+!.env.example
+
+# Private operating material must never enter an image build context.
+AGENTS.md
+PROMPT.md
+PROMPTS.md
+design.doc.md
+handoff.md
+log.md
+research-intake.md
+research/
+
+# Local output and dependencies.
+contracts/cache/
+contracts/out/
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+.next/
+.turbo/
+playwright-report/
+test-results/
+fcc/deploy/generated/
+fcc/deploy/proxy-config/
