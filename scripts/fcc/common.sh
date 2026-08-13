@@ -47,7 +47,8 @@ require_funded_executor() {
   executor="$(executor_address)"
   balance="$(cast balance "$executor" --rpc-url "$CHAIN_URL")"
   [[ "$balance" =~ ^[0-9]+$ ]] || die "could not read executor balance"
-  (( balance > 0 )) || die "executor $executor has no Coston2 balance"
+  balance="$(printf '%s' "$balance" | sed 's/^0*//')"
+  [[ -n "$balance" ]] || die "executor $executor has no Coston2 balance"
   printf '%s\n' "$executor"
 }
 
