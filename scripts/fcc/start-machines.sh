@@ -18,6 +18,10 @@ need docker
 [[ -n "${RECOVERY_PROXY_PRIVATE_KEY:-}" ]] || die "RECOVERY_PROXY_PRIVATE_KEY is required"
 [[ "$PRIMARY_PROXY_PRIVATE_KEY" != "$RECOVERY_PROXY_PRIVATE_KEY" ]] || die "primary and recovery proxies need distinct keys"
 
+[[ "${EXTENSION_ID:-}" =~ ^[1-9][0-9]*$ ]] || die "EXTENSION_ID must be the decimal public extension ID"
+EXTENSION_ID_HEX="$(printf '0x%064x' "$EXTENSION_ID")"
+export EXTENSION_ID_HEX
+
 docker compose -f "$COMPOSE_FILE" config --quiet
 docker compose -f "$COMPOSE_FILE" up -d
 
