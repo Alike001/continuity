@@ -14,6 +14,7 @@ STATE_DIR="${ACCEPTANCE_STATE_DIR:-$ROOT/.fcc-work/acceptance}"
 MANIFEST="$STATE_DIR/manifest.json"
 SNAPSHOT_DIR="$STATE_DIR/snapshots"
 SNAPSHOT_RESULT="$STATE_DIR/snapshot.result.json"
+CONTINUATION_RESULT="$STATE_DIR/continuation.result.json"
 CONTROLLER_ADDRESS="${CONTROLLER_ADDRESS:-}"
 EXTENSION_ID="${EXTENSION_ID:-}"
 PRIMARY_PROXY_URL="${PRIMARY_PROXY_URL:-}"
@@ -21,6 +22,7 @@ RECOVERY_PROXY_URL="${RECOVERY_PROXY_URL:-}"
 ACTION_TIMEOUT="${ACTION_TIMEOUT:-900}"
 POLL_SECONDS="${POLL_SECONDS:-10}"
 ENTRY_TEXT="${ENTRY_TEXT:-continuity-live-acceptance-1}"
+CONTINUATION_ENTRY_TEXT="${CONTINUATION_ENTRY_TEXT:-continuity-live-continuation-2}"
 INSTRUCTION_FEE_WEI="${INSTRUCTION_FEE_WEI:-1000000}"
 
 need jq
@@ -154,6 +156,46 @@ commit_snapshot() {
 	record snapshot_commit_tx "$tx"; printf 'Snapshot committed: tx=%s\n' "$tx"
 }
 
+request_continuation() {
+	local execute="${1:-}" tx action keyx keyy ciphertext public_key primary recovery state
+	local -a key_coordinates=()
+	load_manifest
+	[[ -n "$(step recovery_activation_tx)" ]] || die "recovery is not activated"
+	[[ -z "$(step continuation_action)" ]] || die "continuation already recorded; resume with continuation-commit"
+	primary="$(cast call "$CONTROLLER_ADDRESS" 'activeTee()(address)' --rpc-url "$CHAIN_URL")"
+	recovery="$(cast call "$CONTROLLER_ADDRESS" 'recoveryTee()(address)' --rpc-url "$CHAIN_URL")"
+	state="$(cast call "$CONTROLLER_ADDRESS" 'latestStateRoot()(bytes32)' --rpc-url "$CHAIN_URL")"
+	printf 'Continuation target: active=%s recovery=%s parent=%s\n' "$primary" "$recovery" "$state"
+	public_key="$(cast call "$FLARE_TEE_MANAGER" 'getPublicKey(address)(bytes32,bytes32)' "$recovery" --rpc-url "$CHAIN_URL")" || die "could not read standby TEE public key"
+	mapfile -t key_coordinates < <(public_key_from_tuple "$public_key") || die "could not parse standby TEE public key tuple: $public_key"
+	[[ "${#key_coordinates[@]}" -eq 2 ]] || die "standby TEE public key must contain exactly two coordinates"
+	keyx="${key_coordinates[0]}"
+	keyy="${key_coordinates[1]}"
+	is_hash "$keyx" || die "standby TEE public key x coordinate is malformed"
+	is_hash "$keyy" || die "standby TEE public key y coordinate is malformed"
+	ciphertext="$(cd "$ROOT/extension" && go run ./cmd/acceptance-crypto -x "$keyx" -y "$keyy" -plaintext "$CONTINUATION_ENTRY_TEXT")"
+	printf '%s\n' "$ciphertext" > "$SNAPSHOT_DIR/continuation-entry.ciphertext"
+	[[ "$execute" == "--execute" ]] || { printf 'Encrypted continuation entry: %s\nNo transaction was sent.\n' "$SNAPSHOT_DIR/continuation-entry.ciphertext"; return 0; }
+	require_execute "$execute"; owner_check
+	tx="$(send "$CONTROLLER_ADDRESS" 'requestSnapshot(bytes)' "$ciphertext" --value "$INSTRUCTION_FEE_WEI")"
+	action="$(action_from_receipt "$tx" 'SnapshotRequested(bytes32,uint64,uint64,address,address,bytes32)')"
+	is_hash "$action" || die "SnapshotRequested action ID not found in $tx"
+	record continuation_request_tx "$tx"; record continuation_action "$action"; record continuation_ciphertext "$ciphertext"
+	printf 'Continuation requested: tx=%s action=%s\n' "$tx" "$action"
+}
+
+commit_continuation() {
+	local execute="${1:-}" action response data status signature tag tx
+	load_manifest; action="$(step continuation_action)"; is_hash "$action" || die "run continuation-request first"
+	response="$(wait_result "$RECOVERY_PROXY_URL" "$action")"; save_response continuation "$response" >/dev/null
+	status="$(jq -r '.result.status' <<<"$response")"; data="$(jq -r '.result.data' <<<"$response")"; signature="$(jq -r '.signature' <<<"$response")"; tag="$(jq -r '.result.submissionTag' <<<"$response")"
+	printf 'Signed continuation result: status=%s data-bytes=%s\n' "$status" "$(( (${#data}-2) / 2 ))"
+	[[ "$execute" == "--execute" ]] || { printf 'No transaction was sent.\n'; return 0; }
+	require_execute "$execute"; owner_check
+	tx="$(send "$CONTROLLER_ADDRESS" 'commitSnapshot(bytes,bytes32,string,uint8,bytes)' "$data" "$action" "$tag" "$status" "$signature")"
+	record continuation_commit_tx "$tx"; printf 'Continuation committed: tx=%s\n' "$tx"
+}
+
 request_recovery() {
 	local execute="${1:-}" tx action ciphertext snapshot_data
 	load_manifest
@@ -214,5 +256,7 @@ case "$COMMAND" in
 	recovery-request) request_recovery "${1:-}" ;;
 	recovery-arm) arm_recovery "${1:-}" ;;
 	recovery-activate) activate_recovery "${1:-}" ;;
-	*) die "usage: live-acceptance.sh status|snapshot-request|snapshot-commit|recovery-request|recovery-arm|recovery-activate [--execute]" ;;
+	continuation-request) request_continuation "${1:-}" ;;
+	continuation-commit) commit_continuation "${1:-}" ;;
+	*) die "usage: live-acceptance.sh status|snapshot-request|snapshot-commit|recovery-request|recovery-arm|recovery-activate|continuation-request|continuation-commit [--execute]" ;;
 esac
