@@ -75,6 +75,8 @@ The current backend slice is a small polling service in `scripts/state-service.m
 
 The opaque snapshot store is implemented in `extension/internal/snapshotstore.go` and served by `extension/cmd/snapshot-store.go`. It verifies Ethereum Keccak-256 against the signed result’s ciphertext digest, writes up to 256 KiB atomically under the normalized digest, and returns the exact bytes on retrieval. It never decrypts or signs. The local HTTP surface is intentionally unauthenticated for this milestone. Production authentication, access policy, and permissioned transaction submission remain separate work.
 
+The guarded submission service in `scripts/orchestrator.mjs` is the first permissioned orchestration boundary. It accepts a signed FCC result, persists one durable job per action ID, requires a bearer operator token, and invokes `cast send` only when both execution flags and the executor key are present. Dry-run is the default. A failed RPC or reverted receipt remains a failed job for inspection. A production worker still needs receipt reconciliation after a process crash, a direct check that the referenced ciphertext exists in the snapshot store, and stronger operator authentication than a localhost bearer token.
+
 ## Forward paths
 
 ### Journal mutation

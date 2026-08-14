@@ -50,3 +50,5 @@ CONTINUITY_SNAPSHOT_DIR=../.fcc-work/snapshots go run ./cmd/snapshot-store.go
 ```
 
 It exposes `PUT` and `GET /snapshots/<0x-digest>` on `127.0.0.1:8790`. The current service is intentionally local and unauthenticated. Permissioned operator submission and production authentication are still unimplemented.
+
+The guarded orchestration service is `scripts/orchestrator.mjs`. It accepts an already signed FCC result at `POST /jobs/commit-snapshot`, persists jobs by action ID, and requires a bearer operator token. It is dry-run by default. Real submission additionally requires `CONTINUITY_EXECUTOR_PRIVATE_KEY`, `CONTINUITY_ORCHESTRATOR_EXECUTE=1`, and `CONTINUITY_EXECUTION_CONFIRMATION=I_UNDERSTAND`. Never put those values in frontend code or chat. The current service records the broadcast receipt but still needs a production reconciliation worker before it should be exposed beyond localhost.
