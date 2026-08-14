@@ -37,6 +37,8 @@ The proxy image pins tee-proxy `v0.0.18` and both base image digests. Create `fc
 
 The primary and recovery machines use separate TEE identities, proxy keys, Redis queues, proxy configurations, and local ports. Give each local proxy its own stable named HTTPS tunnel. A quick tunnel is rejected because its hostname changes after restart.
 
+`EXTENSION_ID` remains the decimal public registry ID in the local environment. `start-machines.sh` converts it to the padded 32-byte hex form required by tee-node.
+
 ## Required registration order
 
 Continuity can't use the scaffold's one-shot `pre-build.sh` because that sample registers a zero state verifier. Register the deployed `ContinuityController` as both the state verifier and instruction sender:
