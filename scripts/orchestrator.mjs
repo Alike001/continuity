@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHash } from 'node:crypto'
+import { timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import { execFile } from 'node:child_process'
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
@@ -16,6 +16,8 @@ export const DEFAULTS = {
   rpcUrl: process.env.CONTINUITY_RPC_URL ?? 'https://coston2-api.flare.network/ext/bc/C/rpc',
   privateKey: process.env.CONTINUITY_EXECUTOR_PRIVATE_KEY ?? '',
   execute: process.env.CONTINUITY_ORCHESTRATOR_EXECUTE === '1' && process.env.CONTINUITY_EXECUTION_CONFIRMATION === 'I_UNDERSTAND',
+  snapshotStoreUrl: process.env.CONTINUITY_SNAPSHOT_STORE_URL ?? '',
+  reconcileMs: Number(process.env.CONTINUITY_ORCHESTRATOR_RECONCILE_MS ?? 15000),
 }
 
 const hashPattern = /^0x[0-9a-fA-F]{64}$/
@@ -51,7 +53,25 @@ export function createCastSender(config = DEFAULTS) {
   }
 }
 
-export function createOrchestrator({ config = DEFAULTS, sender = createCastSender(config) } = {}) {
+export function createCastReceiptReader(config = DEFAULTS) {
+  return async (txHash) => {
+    try {
+      const { stdout } = await execFileAsync(process.env.CAST_BIN ?? 'cast', ['receipt', txHash, '--rpc-url', config.rpcUrl, '--json'], { maxBuffer: 512 * 1024 })
+      const receipt = JSON.parse(stdout)
+      return { status: receipt.status }
+    } catch {
+      return null
+    }
+  }
+}
+
+async function defaultSnapshotChecker(config, digest) {
+  if (!config.snapshotStoreUrl) throw new Error('snapshot store URL is required for execution')
+  const response = await fetch(`${config.snapshotStoreUrl.replace(/\/$/, '')}/snapshots/${digest}`, { signal: AbortSignal.timeout(5000) })
+  if (!response.ok) throw new Error(`snapshot store returned HTTP ${response.status}`)
+}
+
+export function createOrchestrator({ config = DEFAULTS, sender = createCastSender(config), receiptReader = createCastReceiptReader(config), snapshotChecker = (digest) => defaultSnapshotChecker(config, digest) } = {}) {
   const jobs = new Map()
   const load = async () => {
     try {
@@ -71,6 +91,10 @@ export function createOrchestrator({ config = DEFAULTS, sender = createCastSende
       const same = existing.resultData === payload.resultData && existing.signature === payload.signature
       if (!same) throw Object.assign(new Error('actionId already has a different payload'), { statusCode: 409 })
       return existing
+    }
+    if (config.execute) {
+      if (!payload.ciphertextDigest) throw new Error('ciphertextDigest is required for execution')
+      await snapshotChecker(payload.ciphertextDigest)
     }
     const job = { ...payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), state: config.execute ? 'queued' : 'dry_run', txHash: null, error: null }
     jobs.set(job.actionId, job)
@@ -94,7 +118,22 @@ export function createOrchestrator({ config = DEFAULTS, sender = createCastSende
     }
     return job
   }
-  return { load, enqueue, run, get: (actionId) => jobs.get(actionId) ?? null, list: () => [...jobs.values()], config }
+  const reconcile = async (actionId) => {
+    const job = jobs.get(actionId)
+    if (!job || job.state !== 'submitted' || !job.txHash) return job
+    const receipt = await receiptReader(job.txHash)
+    if (!receipt || receipt.status === undefined) return job
+    job.receipt = receipt; job.updatedAt = new Date().toISOString()
+    if (['0x1', '1', 1, true].includes(receipt.status)) {
+      job.state = 'succeeded'; job.error = null
+    } else {
+      job.state = 'failed'; job.error = 'transaction receipt reported failure'
+    }
+    await persist(job)
+    return job
+  }
+  const reconcileSubmitted = async () => { for (const job of jobs.values()) await reconcile(job.actionId) }
+  return { load, enqueue, run, reconcile, reconcileSubmitted, get: (actionId) => jobs.get(actionId) ?? null, list: () => [...jobs.values()], config }
 }
 
 async function body(request) {
@@ -105,7 +144,9 @@ async function body(request) {
 }
 
 function authorized(request, token) {
-  return token && request.headers.authorization === `Bearer ${token}`
+  const expected = Buffer.from(`Bearer ${token ?? ''}`)
+  const actual = Buffer.from(request.headers.authorization ?? '')
+  return Boolean(token) && expected.length === actual.length && timingSafeEqual(expected, actual)
 }
 
 export async function startOrchestrator({ orchestrator, port = DEFAULTS.port } = {}) {
@@ -133,6 +174,9 @@ export async function startOrchestrator({ orchestrator, port = DEFAULTS.port } =
       response.end(JSON.stringify({ error: cause instanceof Error ? cause.message : String(cause) }))
     }
   })
+  const timer = setInterval(() => orchestrator.reconcileSubmitted(), orchestrator.config.reconcileMs ?? 15000)
+  timer.unref()
+  server.on('close', () => clearInterval(timer))
   return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server)))
 }
 
@@ -140,6 +184,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (!DEFAULTS.operatorToken) throw new Error('CONTINUITY_OPERATOR_TOKEN is required')
   const orchestrator = createOrchestrator()
   await orchestrator.load()
+  await orchestrator.reconcileSubmitted()
   const server = await startOrchestrator({ orchestrator })
   console.log(`Continuity orchestrator listening on http://127.0.0.1:${DEFAULTS.port}`)
   console.log(`Execution enabled: ${DEFAULTS.execute}`)

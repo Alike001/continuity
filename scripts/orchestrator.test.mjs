@@ -9,6 +9,7 @@ const payload = {
   actionId: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   resultData: '0x1234', submissionTag: 'threshold', status: 1,
   signature: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  ciphertextDigest: '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
 }
 
 test('orchestrator is durable and idempotent in dry-run mode', async () => {
@@ -28,6 +29,8 @@ test('orchestrator executes through an injected sender and exposes auth-protecte
   const orchestrator = createOrchestrator({
     config: { dataDir, operatorToken: 'secret', execute: true },
     sender: async () => { sent += 1; return { txHash: '0x' + 'c'.repeat(64), receipt: { status: '0x1' } } },
+    snapshotChecker: async () => {},
+    receiptReader: async () => ({ status: '0x1' }),
   })
   const server = await startOrchestrator({ orchestrator, port: 0 })
   const url = `http://127.0.0.1:${server.address().port}`
@@ -38,6 +41,20 @@ test('orchestrator executes through an injected sender and exposes auth-protecte
   const job = await response.json()
   assert.equal(job.state, 'submitted')
   assert.equal(sent, 1)
+  await orchestrator.reconcile(payload.actionId)
+  assert.equal(orchestrator.get(payload.actionId).state, 'succeeded')
   server.close()
+  await rm(dataDir, { recursive: true, force: true })
+})
+
+test('orchestrator reconciles a submitted job after restart', async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'continuity-orchestrator-'))
+  const config = { dataDir, operatorToken: 'secret', execute: true }
+  const first = createOrchestrator({ config, snapshotChecker: async () => {}, sender: async () => ({ txHash: '0x' + 'e'.repeat(64) }) })
+  await first.enqueue(payload)
+  const restarted = createOrchestrator({ config, receiptReader: async () => ({ status: '0x1' }) })
+  await restarted.load()
+  await restarted.reconcileSubmitted()
+  assert.equal(restarted.get(payload.actionId).state, 'succeeded')
   await rm(dataDir, { recursive: true, force: true })
 })
