@@ -19,3 +19,13 @@ Live Coston2 evidence includes a successful snapshot commit at epoch 1, an encry
 Stateful FCC apps lose private state when an enclave dies. Continuity restores the latest encrypted state and proves it was not rolled back or forked.
 
 See [the approved scope](research/continuity-scope.md), [the architecture](architecture.md), and [the Flare domain research](research/domain-knowledge.md).
+
+## Recovery Runbook frontend
+
+The presentable operator surface lives in `frontend/` and is intentionally a single recovery runbook rather than a generic dashboard. It replays the recorded Coston2 acceptance path locally, exposes shortened transaction and state-root evidence, and includes deterministic stale-restore and competing-branch rejection checks. The replay is clearly disclosed as recorded evidence and never sends a wallet transaction from the browser.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
