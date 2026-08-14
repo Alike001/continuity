@@ -152,6 +152,13 @@ commit_snapshot() {
 	printf 'Signed snapshot result: status=%s data-bytes=%s\n' "$status" "$(( (${#data}-2) / 2 ))"
 	[[ "$execute" == "--execute" ]] || { printf 'No transaction was sent.\n'; return 0; }
 	require_execute "$execute"; owner_check
+	if [[ "$status" != "1" ]]; then
+		tx="$(send "$CONTROLLER_ADDRESS" 'failSnapshot(bytes,bytes32,string,uint8,bytes)' "$data" "$action" "$tag" "$status" "$signature")"
+		is_hash "$tx" || die "failed snapshot cleanup returned no transaction hash"
+		record snapshot_fail_tx "$tx"; record snapshot_action ""
+		printf 'Snapshot failed and was cleared: tx=%s\n' "$tx"
+		return 1
+	fi
 	tx="$(send "$CONTROLLER_ADDRESS" 'commitSnapshot(bytes,bytes32,string,uint8,bytes)' "$data" "$action" "$tag" "$status" "$signature")"
 	record snapshot_commit_tx "$tx"; printf 'Snapshot committed: tx=%s\n' "$tx"
 }
@@ -166,13 +173,13 @@ request_continuation() {
 	recovery="$(cast call "$CONTROLLER_ADDRESS" 'recoveryTee()(address)' --rpc-url "$CHAIN_URL")"
 	state="$(cast call "$CONTROLLER_ADDRESS" 'latestStateRoot()(bytes32)' --rpc-url "$CHAIN_URL")"
 	printf 'Continuation target: active=%s recovery=%s parent=%s\n' "$primary" "$recovery" "$state"
-	public_key="$(cast call "$FLARE_TEE_MANAGER" 'getPublicKey(address)(bytes32,bytes32)' "$recovery" --rpc-url "$CHAIN_URL")" || die "could not read standby TEE public key"
-	mapfile -t key_coordinates < <(public_key_from_tuple "$public_key") || die "could not parse standby TEE public key tuple: $public_key"
+	public_key="$(cast call "$FLARE_TEE_MANAGER" 'getPublicKey(address)(bytes32,bytes32)' "$primary" --rpc-url "$CHAIN_URL")" || die "could not read active TEE public key"
+	mapfile -t key_coordinates < <(public_key_from_tuple "$public_key") || die "could not parse active TEE public key tuple: $public_key"
 	[[ "${#key_coordinates[@]}" -eq 2 ]] || die "standby TEE public key must contain exactly two coordinates"
 	keyx="${key_coordinates[0]}"
 	keyy="${key_coordinates[1]}"
-	is_hash "$keyx" || die "standby TEE public key x coordinate is malformed"
-	is_hash "$keyy" || die "standby TEE public key y coordinate is malformed"
+	is_hash "$keyx" || die "active TEE public key x coordinate is malformed"
+	is_hash "$keyy" || die "active TEE public key y coordinate is malformed"
 	ciphertext="$(cd "$ROOT/extension" && go run ./cmd/acceptance-crypto -x "$keyx" -y "$keyy" -plaintext "$CONTINUATION_ENTRY_TEXT")"
 	printf '%s\n' "$ciphertext" > "$SNAPSHOT_DIR/continuation-entry.ciphertext"
 	[[ "$execute" == "--execute" ]] || { printf 'Encrypted continuation entry: %s\nNo transaction was sent.\n' "$SNAPSHOT_DIR/continuation-entry.ciphertext"; return 0; }
@@ -192,6 +199,13 @@ commit_continuation() {
 	printf 'Signed continuation result: status=%s data-bytes=%s\n' "$status" "$(( (${#data}-2) / 2 ))"
 	[[ "$execute" == "--execute" ]] || { printf 'No transaction was sent.\n'; return 0; }
 	require_execute "$execute"; owner_check
+	if [[ "$status" != "1" ]]; then
+		tx="$(send "$CONTROLLER_ADDRESS" 'failSnapshot(bytes,bytes32,string,uint8,bytes)' "$data" "$action" "$tag" "$status" "$signature")"
+		is_hash "$tx" || die "failed continuation cleanup returned no transaction hash"
+		record continuation_fail_tx "$tx"; record continuation_action ""
+		printf 'Continuation failed and was cleared: tx=%s\n' "$tx"
+		return 1
+	fi
 	tx="$(send "$CONTROLLER_ADDRESS" 'commitSnapshot(bytes,bytes32,string,uint8,bytes)' "$data" "$action" "$tag" "$status" "$signature")"
 	record continuation_commit_tx "$tx"; printf 'Continuation committed: tx=%s\n' "$tx"
 }

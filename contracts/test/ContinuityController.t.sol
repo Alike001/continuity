@@ -355,6 +355,7 @@ contract ContinuityControllerTest {
 
         vm.expectRevert(abi.encodeWithSelector(ContinuityController.ResultAlreadyConsumed.selector, actionId));
         controller.failSnapshot(data, actionId, TAG, 0, signature);
+        _assertEq(controller.nextNonce(), 1, "terminal error consumed nonce");
         controller.requestSnapshot(hex"02");
     }
 

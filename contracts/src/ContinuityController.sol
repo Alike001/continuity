@@ -274,6 +274,7 @@ contract ContinuityController {
 
         bytes32 ciphertextDigest = keccak256(result.ciphertext);
         _clearSnapshot(actionId);
+        nextNonce++;
         latestEpoch = result.epoch;
         latestParentRoot = result.parentRoot;
         latestStateRoot = result.stateRoot;
@@ -481,7 +482,6 @@ contract ContinuityController {
         consumedResults[actionId] = true;
         delete pendingSnapshots[actionId];
         pendingSnapshotAction = bytes32(0);
-        nextNonce++;
     }
 
     function _clearRecovery(bytes32 actionId) private {
