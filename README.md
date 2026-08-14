@@ -64,6 +64,23 @@ CONTINUITY_SNAPSHOT_DIR=../.fcc-work/snapshots go run ./cmd/snapshot-store.go
 
 The store accepts opaque ciphertext at `PUT /snapshots/<0x-digest>`, verifies Ethereum Keccak-256 against the path, writes atomically, and never decrypts or signs payloads.
 
+## Stable FCC proxy exposure
+
+Quick Cloudflare tunnels are for development only because their hostnames change on restart. If you do not own a domain, use one free ngrok assigned dev domain with the local path router:
+
+```bash
+node scripts/fcc/proxy-router.mjs
+```
+
+In a second terminal, start ngrok with your private authtoken and assigned dev domain. Keep the token out of Git and chat. Route the two FCC registrations to the same HTTPS hostname with different prefixes:
+
+```text
+PRIMARY_PROXY_URL=https://YOUR_ASSIGNED_DOMAIN.ngrok-free.app/primary
+RECOVERY_PROXY_URL=https://YOUR_ASSIGNED_DOMAIN.ngrok-free.app/recovery
+```
+
+The router maps `/primary` to local port `6674` and `/recovery` to local port `6684`. Keep the router, both FCC machines, and ngrok running while the registered URLs are in use. Re-run the read-only machine preflight before changing any onchain registration.
+
 ## Test
 
 ```bash
