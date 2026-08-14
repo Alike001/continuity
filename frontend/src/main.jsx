@@ -44,6 +44,7 @@ function App() {
   const openRecordedRecovery = () => {
     setRunState('complete')
     setActiveStage(7)
+    document.getElementById('runbook')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const inspectRejection = (kind) => {
@@ -117,7 +118,7 @@ function App() {
           </div>
         </section>
 
-        <section className="runbook section-rule">
+        <section id="runbook" className="runbook section-rule">
           <div className="section-heading"><div><div className="eyebrow">THE RUNBOOK</div><h2>One state. One accepted path.</h2></div><span className="mono-caption">EPOCH {evidence.epoch} / ROOT {shorten(evidence.root)}</span></div>
           <div className="ledger" role="list" aria-label="Recorded recovery stages">
             {stages.map(([number, label, value, detail], index) => {

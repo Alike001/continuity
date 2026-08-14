@@ -22,6 +22,7 @@ try {
     if (!liveStatus.includes('indexed state service')) throw new Error(`expected indexed state service, got: ${liveStatus}`)
   }
   await page.getByRole('button', { name: /OPEN VERIFIED RECOVERY/i }).click()
+  await page.waitForFunction(() => window.scrollY > 0, { timeout: 2000 })
   await page.getByRole('button', { name: /INSPECT STALE REJECTION/i }).click()
   await page.getByRole('heading', { name: /Stale restore/i }).waitFor()
   await page.getByRole('button', { name: /Close evidence/i }).click()
