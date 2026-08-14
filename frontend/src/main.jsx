@@ -11,10 +11,11 @@ const evidence = {
   recoveryRequestTx: '0x74244ecfe77d76bb1adba2c4d264932691c4e2ce8890afcc9c4b86f2ccd53c3c',
   activationTx: '0xfd10d1e98cadd4448264a682503142eb1fe87ce31741d7d583a72821570d12e6',
   continuationCommitTx: '0x2b829d7688596bfe7fcfb2cf38355afe421834a29433e47253bc8cb19c5432c3',
+  epoch3SnapshotCommitTx: '0x9fd3d2567d4346fea0591b774316625c65212815161160f48d75905c83de141a',
   terminalErrorRequestTx: '0xf297b23bfbf2c4071dc5823c02d10ed93c01ced85b5fceb73e20d5c93d21cdbb',
   terminalErrorClearTx: '0x1b5c70376e7dc9b1887c0ef479a47f7571a21c6322da45ea25229a63ec6ba94b',
-  root: '0xf0ad19af3ddec5b11da7ce52edae3500b90ad258465fdb3efb3374521ef9b379',
-  epoch: '02',
+  root: '0xb31b7f24e96aa72c1dc92aa31a61f32f9d2d73dcebf09414bb4f953d186e629e',
+  epoch: '03',
   extension: '66240',
   appId: '0x569f078a46d54c8228d4a986d2c421f1504a6456bb83d125982b0bfeb5d90b8c',
   primary: '0xe1f73e51c4b8ddbef6131f4bd3839c85cff9b3c6',
@@ -30,7 +31,7 @@ const stages = [
   ['04', 'HISTORY', 'Root accepted', 'The last committed state is recoverable.'],
   ['05', 'RESTORE', 'Recovery TEE', 'Encrypted state was restored into the standby.'],
   ['06', 'CONFIRM', 'Activation', 'Fresh availability proof completed the handoff.'],
-  ['07', 'CONTINUE', 'Epoch 02 committed', 'The recovered journal accepted a new encrypted entry.'],
+  ['07', 'CONTINUE', 'Epoch 03 committed', 'The recovered journal accepted a new encrypted entry.'],
 ]
 
 function App() {
@@ -66,7 +67,7 @@ function App() {
       const failed = checks.filter((check) => !check.ok)
       setLiveCheck({
         state: failed.length ? 'fail' : 'pass',
-        message: failed.length ? failed.map((check) => check.label).join(', ') : `Coston2 state matches the recorded epoch-02 acceptance via ${source}.`,
+        message: failed.length ? failed.map((check) => check.label).join(', ') : `Coston2 state matches the recorded epoch-03 acceptance via ${source}.`,
       })
     } catch (error) {
       setLiveCheck({ state: 'fail', message: error instanceof Error ? error.message : 'Live verification failed.' })
@@ -99,7 +100,7 @@ function App() {
         <section className="readiness section-rule">
           <div className="readiness-copy">
             <div className="eyebrow">RECOVERY READINESS <span className="live-badge">● RECORDED LIVE EVIDENCE</span></div>
-            <h2>{runState === 'complete' ? 'Recovery verified and continued at epoch 02.' : 'The latest state is ready to inspect.'}</h2>
+            <h2>{runState === 'complete' ? 'Recovery verified and continued at epoch 03.' : 'The latest state is ready to inspect.'}</h2>
             <p>The primary stopped after its encrypted snapshot was committed. The replacement restored the exact accepted root, became active through a fresh FCC availability proof, and accepted a new journal entry.</p>
           </div>
           <div className="readiness-action">
@@ -126,7 +127,7 @@ function App() {
               </button>
             })}
           </div>
-          <div className="continuation-note"><span className="pending-mark">✓</span><span><strong>CONTINUE is verified.</strong> The recovered journal accepted a new encrypted entry and advanced the lineage to epoch 02.</span></div>
+          <div className="continuation-note"><span className="pending-mark">✓</span><span><strong>CONTINUE is verified.</strong> The recovered journal accepted a new encrypted entry and advanced the lineage to epoch 03.</span></div>
         </section>
 
         <section className="evidence section-rule">
@@ -134,7 +135,7 @@ function App() {
           <div className="evidence-grid">
             <EvidenceCard label="SIGNED RESULT" value="Primary snapshot" detail="Status 1 · log ok" onClick={() => setInspector('signed')} />
             <EvidenceCard label="CONTRACT" value="Activation" detail={shorten(evidence.activationTx)} onClick={() => setInspector('contract')} />
-            <EvidenceCard label="STATE ROOT" value={shorten(evidence.root)} detail="Accepted at epoch 02" onClick={() => setInspector('raw')} />
+            <EvidenceCard label="STATE ROOT" value={shorten(evidence.root)} detail="Accepted at epoch 03" onClick={() => setInspector('raw')} />
             <EvidenceCard label="FCC FAILURE" value="Terminal error" detail="Status 0 · cleared" onClick={() => setInspector('terminal')} />
           </div>
         </section>
@@ -142,7 +143,7 @@ function App() {
         <section className="adversarial section-rule">
           <div className="eyebrow">ADVERSARIAL CHECKS</div>
           <div className="adversarial-grid">
-            <div><h2>Recovery only succeeds when the history agrees.</h2><p>A real FCC-signed terminal error was cleared without changing epoch 02. Stale and competing-branch checks remain deterministic controller-test evidence.</p></div>
+            <div><h2>Recovery only succeeds when the history agrees.</h2><p>A real FCC-signed terminal error was cleared without changing the accepted lineage. Stale and competing-branch checks remain deterministic controller-test evidence.</p></div>
             <div className="test-actions"><TestButton label="INSPECT FCC FAILURE" onClick={() => setInspector('terminal')} /><TestButton label="INSPECT STALE REJECTION" onClick={() => inspectRejection('stale')} /><TestButton label="INSPECT FORK REJECTION" onClick={() => inspectRejection('fork')} /></div>
           </div>
           {rejection && <div className="rejection"><span className="rejection-mark">×</span><span><strong>REJECTED IN CONTROLLER TEST</strong> / {rejection === 'stale' ? 'STALE RESTORE' : 'COMPETING BRANCH'}<small>{rejection === 'stale' ? 'Older epoch is rejected before it can replace the accepted root.' : 'A second branch extending the consumed parent is rejected.'} Live receipt pending.</small></span></div>}
@@ -195,7 +196,7 @@ function checksFromState(state) {
   return [
     { label: 'chain ID', ok: state.chainId === 114 },
     { label: 'controller code', ok: state.controllerCode === true },
-    { label: 'epoch 02', ok: state.epoch === 2 },
+    { label: 'epoch 03', ok: state.epoch === 3 },
     { label: 'state root', ok: state.stateRoot.toLowerCase() === evidence.root.toLowerCase() },
     { label: 'active TEE', ok: state.activeTee.toLowerCase() === evidence.active.toLowerCase() },
     { label: 'recovery TEE', ok: state.recoveryTee.toLowerCase() === evidence.recoveryFinal.toLowerCase() },
@@ -216,7 +217,7 @@ async function readLiveState() {
   return [
     { label: 'chain ID', ok: BigInt(chainId) === 114n },
     { label: 'controller code', ok: code !== '0x' },
-    { label: 'epoch 02', ok: BigInt(`0x${decodeWord(epoch)}`) === 2n },
+    { label: 'epoch 03', ok: BigInt(`0x${decodeWord(epoch)}`) === 3n },
     { label: 'state root', ok: root.toLowerCase() === evidence.root.toLowerCase() },
     { label: 'active TEE', ok: activeAddress.toLowerCase() === evidence.active.toLowerCase() },
     { label: 'recovery TEE', ok: recoveryAddress.toLowerCase() === evidence.recoveryFinal.toLowerCase() },
@@ -239,13 +240,13 @@ function CopyValue({ label, value }) {
 function Inspector({ tab, close }) {
   const [selectedTab, setSelectedTab] = useState(tab)
   const content = {
-    summary: ['SUMMARY', 'A recorded Coston2 acceptance path', 'Snapshot commit, exact encrypted recovery, fresh availability, activation, epoch-02 continuation, and a signed terminal FCC failure completed against the final controller.'],
-    signed: ['SIGNED RESULT', 'Primary snapshot / status 1', 'The primary TEE returned a real FCC-signed result. The extension accepted it before the controller committed epoch 01 and the replacement later continued at epoch 02.'],
-    contract: ['CONTRACT', 'Activation and continuation', 'The recovery TEE became active after the controller accepted its restored root and a fresh production availability proof. A new encrypted entry then committed at epoch 02.'],
+    summary: ['SUMMARY', 'A recorded Coston2 acceptance path', 'Snapshot commit, exact encrypted recovery, fresh availability, activation, epoch-03 continuation, and a signed terminal FCC failure completed against the final controller.'],
+    signed: ['SIGNED RESULT', 'Primary snapshot / status 1', 'The primary TEE returned a real FCC-signed result. The extension accepted it before the controller committed epoch 01 and the replacement later continued at epoch 03.'],
+    contract: ['CONTRACT', 'Activation and continuation', 'The recovery TEE became active after the controller accepted its restored root and a fresh production availability proof. A new encrypted entry then committed at epoch 03.'],
     raw: ['RAW', 'Accepted state root', 'Full public identifiers for the recorded run. Ciphertext remains encrypted and is not shown in the browser.'],
     stale: ['REJECTION', 'Stale restore / deterministic test', 'The controller rejects an older epoch before it can replace the accepted state root. This remains local controller-test evidence until a live Coston2 receipt is captured.'],
     fork: ['REJECTION', 'Competing branch / deterministic test', 'The controller rejects a second state root extending an already-consumed parent. This remains local controller-test evidence until a live Coston2 receipt is captured.'],
-    terminal: ['FCC FAILURE', 'Terminal error / status 0', 'The active recovery proxy returned a real FCC-signed error after a non-decryptable snapshot payload. The controller cleared the pending action with failSnapshot, and the epoch-02 root remained unchanged.'],
+    terminal: ['FCC FAILURE', 'Terminal error / status 0', 'The active recovery proxy returned a real FCC-signed error after a non-decryptable snapshot payload. The controller cleared the pending action with failSnapshot, and the accepted lineage remained unchanged.'],
     disclosure: ['DISCLOSURE', 'What simulated TEE proves', 'This environment proves the FCC registration, signed-result, state-verifier, and recovery protocol path. Hardware-backed confidentiality is not active.'],
   }[selectedTab]
   return <div className="inspector-backdrop" onClick={close}><aside className="inspector" onClick={(event) => event.stopPropagation()} aria-label="Evidence inspector"><div className="inspector-head"><span className="eyebrow">EVIDENCE / {content[0]}</span><button className="close-button" onClick={close} aria-label="Close evidence">×</button></div><div className="inspector-tabs" role="tablist">{['summary', 'signed', 'contract', 'terminal', 'raw'].map((name) => <button key={name} role="tab" aria-selected={selectedTab === name} className={selectedTab === name ? 'selected' : ''} onClick={() => setSelectedTab(name)}>{name.toUpperCase()}</button>)}</div><h2>{content[1]}</h2><p>{content[2]}</p>{selectedTab === 'raw' && <div className="raw-values"><CopyValue label="STATE ROOT" value={evidence.root} /><CopyValue label="SNAPSHOT COMMIT TX" value={evidence.snapshotCommitTx} /><CopyValue label="ACTIVATION TX" value={evidence.activationTx} /><CopyValue label="CONTINUATION TX" value={evidence.continuationCommitTx} /><CopyValue label="APPLICATION ID" value={evidence.appId} /><CopyValue label="PRIMARY TEE" value={evidence.primary} /><CopyValue label="RECOVERY TEE" value={evidence.recovery} /></div>}{selectedTab === 'contract' && <div className="raw-values"><CopyValue label="SNAPSHOT COMMIT TX" value={evidence.snapshotCommitTx} /><CopyValue label="RECOVERY REQUEST TX" value={evidence.recoveryRequestTx} /><CopyValue label="ACTIVATION TX" value={evidence.activationTx} /><CopyValue label="CONTINUATION TX" value={evidence.continuationCommitTx} /></div>}{selectedTab === 'terminal' && <div className="raw-values"><CopyValue label="ERROR REQUEST TX" value={evidence.terminalErrorRequestTx} /><CopyValue label="FAIL SNAPSHOT TX" value={evidence.terminalErrorClearTx} /><CopyValue label="STATE ROOT" value={evidence.root} /></div>}<div className="inspector-rule" /><div className="inspector-foot"><span>FLARE COSTON2</span><span>RECORDED REAL EVIDENCE</span></div></aside></div>

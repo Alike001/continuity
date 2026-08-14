@@ -96,12 +96,25 @@ export async function readEvents(rpc, config = DEFAULTS, fromBlock, toBlock) {
 }
 
 export function createRpc(rpcUrl = DEFAULTS.rpcUrl) {
-  return async (method, params) => {
-    const response = await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params }) })
-    if (!response.ok) throw new Error(`RPC HTTP ${response.status}`)
-    const body = await response.json()
-    if (body.error) throw new Error(body.error.message || 'RPC rejected the request')
-    return body.result
+  let queue = Promise.resolve()
+  const request = async (method, params) => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params }) })
+      if (response.status === 429 && attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)))
+        continue
+      }
+      if (!response.ok) throw new Error(`RPC HTTP ${response.status}`)
+      const body = await response.json()
+      if (body.error) throw new Error(body.error.message || 'RPC rejected the request')
+      return body.result
+    }
+    throw new Error('RPC retry loop ended unexpectedly')
+  }
+  return (method, params) => {
+    const next = queue.then(() => request(method, params))
+    queue = next.catch(() => undefined)
+    return next
   }
 }
 
