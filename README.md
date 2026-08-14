@@ -1,32 +1,35 @@
 # Continuity
 
-Continuity is a rollback-safe recovery primitive for stateful applications built with Flare Confidential Compute.
+Continuity is a recovery primitive for stateful applications running in Flare Confidential Compute. It keeps an encrypted application journal recoverable across FCC machines and makes every accepted transition verifiable on Flare Coston2.
 
-A custom FCC extension can keep private application state in memory, but that state is lost when the extension restarts. Continuity exports encrypted snapshots, anchors their ordered state commitments on Coston2, restores the latest approved state on a replacement extension, and rejects stale or competing histories.
+## The problem
 
-## Current status
+An FCC extension loses private in-memory state when its machine restarts or becomes unavailable. A normal backup cannot prove that the restored state is the latest accepted state, or prevent an old snapshot from being replayed.
 
-Phase 2 scope, Phase 3 design, and the Phase 4 architecture are approved. Recovery Runbook is the selected product surface. The extension-state adapter, controller, and sealed-journal reference extension are implemented. The final two-TEE Coston2 path is complete through recovery activation and a successful epoch-2 continuation.
+## What Continuity does
 
-The first release is limited to one reference extension, two registered simulated TEE instances on Coston2, manual recovery, and deterministic lineage rejection. The current implementation includes a tested [tee-node extension-state adapter](fcc/tee-node/README.md) pinned to v0.0.24, a tested [Continuity controller](contracts/README.md) that verifies FCC state and enforces snapshot lineage, and a tested [sealed-journal extension](extension/README.md) with encrypted recovery. Simulated TEE proves the FCC integration and state protocol behavior. It does not provide hardware-backed confidentiality.
+1. The active FCC machine encrypts a journal snapshot.
+2. Flare Confidential Compute returns a signed result.
+3. The Continuity controller verifies the result, epoch, parent root, nonce, and ciphertext digest on Coston2.
+4. A registered standby machine restores the accepted ciphertext after a fresh availability proof.
+5. The recovered journal continues at the next epoch.
 
-The guarded live acceptance runner is `scripts/fcc/live-acceptance.sh`. It is resumable and dry-run by default. It stores its manifest and signed FCC responses under ignored `.fcc-work/acceptance/`. A broadcast requires both `--execute` and `CONFIRM_COSTON2_TX=I_UNDERSTAND`, so reviewing or testing the command cannot send a Coston2 transaction accidentally. Run the stages in order: `snapshot-request`, `snapshot-commit`, `recovery-request`, `recovery-arm`, `recovery-activate`, then `continuation-request` and `continuation-commit`. The recovery machine must be paused and then promoted through the existing FCC registration flow between the arm and activation stages. The continuation stages target the newly active recovery TEE and require the same explicit transaction approval.
+The controller rejects replayed results, stale snapshots, competing branches, malformed state, and ciphertext substitution. The browser is an evidence-first, read-only runbook. It never contains an executor key or sends a wallet transaction.
 
-For a non-mutating failure proof, the runner also has `snapshot-error-request` and `snapshot-error-commit`. These send a deliberately non-decryptable, non-empty payload, collect the real FCC-signed error from the active proxy, and clear the pending action with `failSnapshot`. Set `ERROR_PROXY_URL` to the proxy for the currently active TEE, and use a separate ignored acceptance state directory. This path proves terminal FCC error handling without changing the committed state root. It does not claim a stale or competing successful result.
+## Verified Coston2 proof
 
-Live Coston2 evidence on the final controller includes a successful epoch-1 snapshot commit, encrypted recovery, signed restore result, manager pause, recovery arm, fresh availability proof, activation, and an epoch-2 continuation commit. Final controller: `0x50D2871f491EC42F2a4fB5198308Dcf9A5c532fC`. Snapshot commit: `0xe911f8884151c62d2dc8f2a0dacc3057191a32c6bc60b6d21962f1e401f59a51`. Recovery activation: `0xfd10d1e98cadd4448264a682503142eb1fe87ce31741d7d583a72821570d12e6`. Continuation commit: `0x2b829d7688596bfe7fcfb2cf38355afe421834a29433e47253bc8cb19c5432c3`. Live replay protection reverted at `0x148a99f6de94d37a6de0609a1fc0f51cf6b60d7da937d08ac205956b3e44ca6f`, and exact-ciphertext substitution reverted at `0x8fc86bb1ed736b4c90993fac2a9e1cb6ea15c879a052b6e8576e5786f7f3d83b`. Stale and competing-fork live receipts remain pending because they require a valid FCC signature over deliberately stale or competing state. The live deployment uses simulated attestation, which proves protocol integration but does not claim hardware-backed confidentiality.
+The final controller is `0x50D2871f491EC42F2a4fB5198308Dcf9A5c532fC` on Flare Coston2, extension `66240`.
 
-## Product story
+- Epoch-3 snapshot request: `0x51213a6785f361dcdc204b6f4a4950580a0f8949bdf7a9c74870564cebb8df9d`
+- Epoch-3 guarded commit: `0x9fd3d2567d4346fea0591b774316625c65212815161160f48d75905c83de141a`
+- Replay protection receipt: `0x148a99f6de94d37a6de0609a1fc0f51cf6b60d7da937d08ac205956b3e44ca6f`
+- Ciphertext substitution receipt: `0x8fc86bb1ed736b4c90993fac2a9e1cb6ea15c879a052b6e8576e5786f7f3d83b`
 
-Stateful FCC apps lose private state when an enclave dies. Continuity restores the latest encrypted state and proves it was not rolled back or forked.
+The sanitized evidence bundle is [evidence/coston2-acceptance.json](evidence/coston2-acceptance.json). It contains public identifiers, transaction hashes, signed-result hashes, and explicit limitations. It does not contain keys, FCC credentials, or encrypted payloads.
 
-See [the approved scope](research/continuity-scope.md), [the architecture](architecture.md), [the Flare domain research](research/domain-knowledge.md), and [the judging-criteria map](judging-criteria.md).
+FCC machines in this release are simulated TEEs. This proves Flare protocol integration and signed state transitions, not hardware-backed confidentiality.
 
-The sanitized public acceptance record is [evidence/coston2-acceptance.json](evidence/coston2-acceptance.json). It includes the final controller state, transaction hashes, signed-result hashes, live negative receipts, and explicit unproven claims. Private keys, FCC credentials, and encrypted payloads are excluded.
-
-## Recovery Runbook frontend
-
-The presentable operator surface lives in `frontend/` and is intentionally a single recovery runbook rather than a generic dashboard. It opens a recorded Coston2 acceptance path, exposes full public identifiers through the evidence inspector, and labels deterministic stale-restore and competing-branch checks as local controller-test evidence until live receipts exist. The browser is read-only and never sends a wallet transaction.
+## Run the frontend
 
 ```bash
 cd frontend
@@ -34,21 +37,72 @@ npm install
 npm run dev
 ```
 
-For a local backend boundary, start the read-only Coston2 state service in a second terminal before opening the runbook:
+The runbook reads a local state service when available and falls back to direct Coston2 RPC reads. The fallback is visible in the UI and is not treated as indexed-service health.
+
+## Run the read-only state service
+
+From the repository root:
 
 ```bash
 node scripts/state-service.mjs
 ```
 
-It polls the deployed controller and FlareTeeManager, writes the last verified response to ignored `.fcc-work/indexer-state.json`, indexes controller lineage events to `.fcc-work/indexer-events.json`, and serves `/health`, `/api/state`, and `/api/events` on `http://127.0.0.1:8787`. Coston2 limits log queries to 30 blocks, so the indexer scans in safe chunks. Set `CONTINUITY_FROM_BLOCK` to the deployment or first-event block when operating beyond the default bounded lookback. The browser uses this cached service for live verification and reports how many controller events were indexed. It falls back to a direct public RPC read if the service is unavailable. This service is intentionally read-only. It does not submit wallet transactions or claim to be the finished recovery orchestrator.
+The service polls the deployed controller and FlareTeeManager, indexes controller events in safe 30-block chunks, and serves:
 
-The opaque snapshot store is a separate local service. It verifies Ethereum Keccak-256 against the digest supplied by a signed FCC result, writes ciphertext atomically under that digest, and never decrypts or signs payloads:
+- `GET http://127.0.0.1:8787/health`
+- `GET http://127.0.0.1:8787/api/state`
+- `GET http://127.0.0.1:8787/api/events`
+
+Set `CONTINUITY_RPC_URL` and `CONTINUITY_FROM_BLOCK` when using a different Coston2 RPC or scan start. The service is read-only and does not submit transactions.
+
+## Run the local snapshot store
 
 ```bash
 cd extension
 CONTINUITY_SNAPSHOT_DIR=../.fcc-work/snapshots go run ./cmd/snapshot-store.go
 ```
 
-It exposes `PUT` and `GET /snapshots/<0x-digest>` on `127.0.0.1:8790`. The current service is intentionally local and unauthenticated. Permissioned operator submission and production authentication are still unimplemented.
+The store accepts opaque ciphertext at `PUT /snapshots/<0x-digest>`, verifies Ethereum Keccak-256 against the path, writes atomically, and never decrypts or signs payloads.
 
-The guarded orchestration service is `scripts/orchestrator.mjs`. It accepts an already signed FCC result at `POST /jobs/commit-snapshot`, requires a bearer operator token, checks that the referenced ciphertext exists in the snapshot store, persists jobs by action ID, and reconciles submitted receipts after restart. It is dry-run by default. Real submission additionally requires `CONTINUITY_EXECUTOR_PRIVATE_KEY`, `CONTINUITY_SNAPSHOT_STORE_URL`, `CONTINUITY_ORCHESTRATOR_EXECUTE=1`, and `CONTINUITY_EXECUTION_CONFIRMATION=I_UNDERSTAND`. Never put those values in frontend code or chat. The current authentication is intended for a localhost operator, not an internet-facing service.
+## Test
+
+```bash
+forge test
+cd extension && go test ./...
+cd .. && node --test scripts/state-service.test.mjs scripts/orchestrator.test.mjs
+cd frontend && npm run build && npm run test:smoke
+```
+
+The browser smoke test expects a Vite preview at `http://127.0.0.1:4173`. Start it with:
+
+```bash
+cd frontend
+npm run preview -- --host 127.0.0.1 --port 4173
+```
+
+The FCC acceptance runner is dry-run by default. A Coston2 broadcast requires `--execute`, explicit confirmation, and an ignored local environment file. Never place private keys or FCC credentials in frontend code, Git, or chat.
+
+## Architecture
+
+Forward path: operator -> frontend or local service -> FCC proxy -> opaque snapshot store -> guarded orchestrator -> Continuity controller on Coston2.
+
+Reverse path: controller event -> state service -> cached verified state and event history -> frontend.
+
+Onchain state contains ownership, registered machines, epochs, roots, action gates, and accepted transitions. Encrypted payloads remain offchain because the chain needs their digest and signed proof, not plaintext custody.
+
+## Limitations
+
+- Simulated FCC machines are used for the hackathon proof.
+- Stable named FCC proxy endpoints and a hosted frontend are not included in this repository state.
+- The guarded submission service is designed for a localhost operator, not an internet-facing deployment.
+- Stale-epoch and competing-fork rejection are covered by deterministic controller tests. Separate live receipts are not claimed.
+
+## Links
+
+- [Controller contract details](contracts/README.md)
+- [Sealed journal extension](extension/README.md)
+- [Flare tee-node adapter](fcc/tee-node/README.md)
+- [Architecture](architecture.md)
+- [Judging criteria mapping](judging-criteria.md)
+- [Coston2 evidence](evidence/coston2-acceptance.json)
+- [GitHub repository](https://github.com/Alike001/continuity)
