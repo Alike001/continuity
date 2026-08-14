@@ -10,6 +10,11 @@ function route(pathname) {
   return null
 }
 
+const hopByHopHeaders = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade'])
+function endToEndHeaders(headers) {
+  return Object.fromEntries(Object.entries(headers).filter(([name]) => !hopByHopHeaders.has(name.toLowerCase())))
+}
+
 const server = http.createServer((request, response) => {
   const incoming = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
   const target = route(incoming.pathname)
@@ -25,9 +30,9 @@ const server = http.createServer((request, response) => {
     port: target.port,
     method: request.method,
     path: `${rewrittenPath}${incoming.search}`,
-    headers: { ...request.headers, host: `127.0.0.1:${target.port}` },
+    headers: { ...endToEndHeaders(request.headers), host: `127.0.0.1:${target.port}` },
   }, (upstream) => {
-    response.writeHead(upstream.statusCode ?? 502, upstream.headers)
+    response.writeHead(upstream.statusCode ?? 502, endToEndHeaders(upstream.headers))
     upstream.pipe(response)
   })
 
