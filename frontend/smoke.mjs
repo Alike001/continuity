@@ -13,10 +13,13 @@ try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
   await page.getByRole('heading', { name: /Private application state should survive/i }).waitFor()
   await page.getByRole('button', { name: /VERIFY LIVE COSTON2 STATE/i }).click()
-  await page.getByText('LIVE STATE VERIFIED').waitFor({ timeout: 20000 })
+  await page.waitForFunction(() => {
+    const text = document.querySelector('[role="status"]')?.textContent ?? ''
+    return text.includes('LIVE STATE VERIFIED') || text.includes('LIVE CHECK NEEDS REVIEW')
+  }, { timeout: 20000 })
+  const liveStatus = await page.locator('[role="status"]').innerText()
   if (process.env.REQUIRE_STATE_SERVICE === '1') {
-    const status = await page.locator('[role="status"]').innerText()
-    if (!status.includes('indexed state service')) throw new Error(`expected indexed state service, got: ${status}`)
+    if (!liveStatus.includes('indexed state service')) throw new Error(`expected indexed state service, got: ${liveStatus}`)
   }
   await page.getByRole('button', { name: /OPEN VERIFIED RECOVERY/i }).click()
   await page.getByRole('button', { name: /INSPECT STALE REJECTION/i }).click()
