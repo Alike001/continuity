@@ -67,6 +67,8 @@ The database stores polling jobs, storage metadata, indexed contract events, and
 
 The application shell is the landing experience. It reads indexed state and presents one primary recovery action. Every stage comes from extension, storage, proxy result, transaction receipt, availability proof, or contract state. Timers never manufacture progress.
 
+The runbook also exposes an explicit `VERIFY LIVE COSTON2 STATE` action. This is a manual, read-only preflight against the public Coston2 RPC. It checks the controller bytecode, chain ID, epoch, accepted root, active and recovery TEE IDs, pending-action gates, recovery arm, and FCC manager status. It is an operator proof tool, not the normal read path. A production deployment should move these reads behind the indexed backend described below and retain this direct RPC check as an operator diagnostic.
+
 ## Forward paths
 
 ### Journal mutation

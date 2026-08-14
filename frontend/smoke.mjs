@@ -12,6 +12,8 @@ page.on('pageerror', (error) => errors.push(error.message))
 try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
   await page.getByRole('heading', { name: /Private application state should survive/i }).waitFor()
+  await page.getByRole('button', { name: /VERIFY LIVE COSTON2 STATE/i }).click()
+  await page.getByText('LIVE STATE VERIFIED').waitFor({ timeout: 20000 })
   await page.getByRole('button', { name: /OPEN VERIFIED RECOVERY/i }).click()
   await page.getByRole('button', { name: /INSPECT STALE REJECTION/i }).click()
   await page.getByRole('heading', { name: /Stale restore/i }).waitFor()

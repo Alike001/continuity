@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import './styles.css'
 
 const evidence = {
+  rpcUrl: 'https://coston2-api.flare.network/ext/bc/C/rpc',
+  controller: '0x50D2871f491EC42F2a4fB5198308Dcf9A5c532fC',
   snapshotRequestTx: '0xa6336fdc8d80b6465ec02e1b3cbbe5826a34164f0806b34c1dae37be8d60ebd3',
   snapshotCommitTx: '0xe911f8884151c62d2dc8f2a0dacc3057191a32c6bc60b6d21962f1e401f59a51',
   recoveryRequestTx: '0x74244ecfe77d76bb1adba2c4d264932691c4e2ce8890afcc9c4b86f2ccd53c3c',
@@ -16,6 +18,8 @@ const evidence = {
   appId: '0x569f078a46d54c8228d4a986d2c421f1504a6456bb83d125982b0bfeb5d90b8c',
   primary: '0xe1f73e51c4b8ddbef6131f4bd3839c85cff9b3c6',
   recovery: '0x693535e87de176f4019bb790e45bd85c27192b3a',
+  active: '0x693535e87de176f4019bb790e45bd85c27192b3a',
+  recoveryFinal: '0xe1f73e51c4b8ddbef6131f4bd3839c85cff9b3c6',
 }
 
 const stages = [
@@ -33,6 +37,7 @@ function App() {
   const [activeStage, setActiveStage] = useState(7)
   const [inspector, setInspector] = useState(null)
   const [rejection, setRejection] = useState(null)
+  const [liveCheck, setLiveCheck] = useState({ state: 'idle', message: '' })
 
   const openRecordedRecovery = () => {
     setRunState('complete')
@@ -42,6 +47,20 @@ function App() {
   const inspectRejection = (kind) => {
     setRejection(kind)
     setInspector(kind === 'stale' ? 'stale' : 'fork')
+  }
+
+  const verifyLive = async () => {
+    setLiveCheck({ state: 'loading', message: 'Reading controller and FCC manager state…' })
+    try {
+      const checks = await readLiveState()
+      const failed = checks.filter((check) => !check.ok)
+      setLiveCheck({
+        state: failed.length ? 'fail' : 'pass',
+        message: failed.length ? failed.map((check) => check.label).join(', ') : 'Coston2 state matches the recorded epoch-02 acceptance.',
+      })
+    } catch (error) {
+      setLiveCheck({ state: 'fail', message: error instanceof Error ? error.message : 'Live verification failed.' })
+    }
   }
 
   return (
@@ -79,6 +98,10 @@ function App() {
               {runState === 'complete' ? 'OPEN VERIFIED RECOVERY' : 'OPEN RECORDED RECOVERY'} <span aria-hidden="true">→</span>
             </button>
             <span id="recorded-note" className="action-note">Recorded Coston2 evidence mode. This control opens the verified run and sends no wallet transaction.</span>
+            <button className="secondary-action live-check-button" onClick={verifyLive} disabled={liveCheck.state === 'loading'}>
+              {liveCheck.state === 'loading' ? 'VERIFYING COSTON2…' : 'VERIFY LIVE COSTON2 STATE'} <span aria-hidden="true">↗</span>
+            </button>
+            {liveCheck.state !== 'idle' && <div className={`live-check ${liveCheck.state}`} role="status"><strong>{liveCheck.state === 'pass' ? 'LIVE STATE VERIFIED' : liveCheck.state === 'loading' ? 'LIVE CHECK IN PROGRESS' : 'LIVE CHECK NEEDS REVIEW'}</strong><span>{liveCheck.message}</span></div>}
           </div>
         </section>
 
@@ -124,6 +147,53 @@ function App() {
 }
 
 function shorten(value) { return `${value.slice(0, 10)}…${value.slice(-8)}` }
+const selectors = {
+  latestEpoch: '0x9cb118bf', latestStateRoot: '0x991beafd', activeTee: '0x4fa11f55', recoveryTee: '0x116fdfc5',
+  pendingSnapshotAction: '0x446723cd', pendingRecoveryAction: '0xfe52860b', recoveryArmed: '0x2807230a',
+  teeManager: '0xf665e5e7', getTeeMachineStatus: '0x25e30221',
+}
+
+async function rpc(method, params) {
+  const response = await fetch(evidence.rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params }) })
+  if (!response.ok) throw new Error(`Coston2 RPC returned HTTP ${response.status}.`)
+  const body = await response.json()
+  if (body.error) throw new Error(body.error.message || 'Coston2 RPC rejected the read.')
+  return body.result
+}
+
+async function callView(selector, args = '') {
+  return rpc('eth_call', [{ to: evidence.controller, data: `${selector}${args}` }, 'latest'])
+}
+
+async function callAt(to, selector, args = '') {
+  return rpc('eth_call', [{ to, data: `${selector}${args}` }, 'latest'])
+}
+
+function addressArg(address) { return address.toLowerCase().replace(/^0x/, '').padStart(64, '0') }
+function decodeAddress(value) { return `0x${value.slice(-40)}` }
+function decodeWord(value) { return value.slice(-64) }
+
+async function readLiveState() {
+  const [chainId, code, manager, epoch, root, active, recovery, pendingSnapshot, pendingRecovery, armed] = await Promise.all([
+    rpc('eth_chainId', []), rpc('eth_getCode', [evidence.controller, 'latest']), callView(selectors.teeManager), callView(selectors.latestEpoch), callView(selectors.latestStateRoot),
+    callView(selectors.activeTee), callView(selectors.recoveryTee), callView(selectors.pendingSnapshotAction), callView(selectors.pendingRecoveryAction), callView(selectors.recoveryArmed),
+  ])
+  const activeAddress = decodeAddress(active)
+  const recoveryAddress = decodeAddress(recovery)
+  const [activeStatus, recoveryStatus] = await Promise.all([callAt(decodeAddress(manager), selectors.getTeeMachineStatus, addressArg(activeAddress)), callAt(decodeAddress(manager), selectors.getTeeMachineStatus, addressArg(recoveryAddress))])
+  return [
+    { label: 'chain ID', ok: BigInt(chainId) === 114n },
+    { label: 'controller code', ok: code !== '0x' },
+    { label: 'epoch 02', ok: BigInt(`0x${decodeWord(epoch)}`) === 2n },
+    { label: 'state root', ok: root.toLowerCase() === evidence.root.toLowerCase() },
+    { label: 'active TEE', ok: activeAddress.toLowerCase() === evidence.active.toLowerCase() },
+    { label: 'recovery TEE', ok: recoveryAddress.toLowerCase() === evidence.recoveryFinal.toLowerCase() },
+    { label: 'no pending action', ok: BigInt(`0x${decodeWord(pendingSnapshot)}`) === 0n && BigInt(`0x${decodeWord(pendingRecovery)}`) === 0n },
+    { label: 'recovery unarmed', ok: BigInt(`0x${decodeWord(armed)}`) === 0n },
+    { label: 'FCC machines production', ok: BigInt(`0x${decodeWord(activeStatus)}`) === 2n && BigInt(`0x${decodeWord(recoveryStatus)}`) === 2n },
+  ]
+}
+
 function IdentityCell({ label, value, status, tone = '' }) { return <div className={`identity-cell ${tone}`}><span>{label}</span><strong>{value}</strong>{status && <small>{status}</small>}</div> }
 function EvidenceCard({ label, value, detail, onClick }) { return <button className="evidence-card" onClick={onClick}><span className="eyebrow">{label}</span><strong>{value}</strong><small>{detail} <span aria-hidden="true">↗</span></small></button> }
 function TestButton({ label, onClick }) { return <button className="secondary-action" onClick={onClick}>{label} <span aria-hidden="true">↗</span></button> }
