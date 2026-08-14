@@ -20,7 +20,7 @@ Live Coston2 evidence on the final controller includes a successful epoch-1 snap
 
 Stateful FCC apps lose private state when an enclave dies. Continuity restores the latest encrypted state and proves it was not rolled back or forked.
 
-See [the approved scope](research/continuity-scope.md), [the architecture](architecture.md), and [the Flare domain research](research/domain-knowledge.md).
+See [the approved scope](research/continuity-scope.md), [the architecture](architecture.md), [the Flare domain research](research/domain-knowledge.md), and [the judging-criteria map](judging-criteria.md).
 
 The sanitized public acceptance record is [evidence/coston2-acceptance.json](evidence/coston2-acceptance.json). It includes the final controller state, transaction hashes, signed-result hashes, live negative receipts, and explicit unproven claims. Private keys, FCC credentials, and encrypted payloads are excluded.
 
