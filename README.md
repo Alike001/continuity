@@ -20,6 +20,8 @@ Stateful FCC apps lose private state when an enclave dies. Continuity restores t
 
 See [the approved scope](research/continuity-scope.md), [the architecture](architecture.md), and [the Flare domain research](research/domain-knowledge.md).
 
+The sanitized public acceptance record is [evidence/coston2-acceptance.json](evidence/coston2-acceptance.json). It includes the final controller state, transaction hashes, signed-result hashes, live negative receipts, and explicit unproven claims. Private keys, FCC credentials, and encrypted payloads are excluded.
+
 ## Recovery Runbook frontend
 
 The presentable operator surface lives in `frontend/` and is intentionally a single recovery runbook rather than a generic dashboard. It opens a recorded Coston2 acceptance path, exposes full public identifiers through the evidence inspector, and labels deterministic stale-restore and competing-branch checks as local controller-test evidence until live receipts exist. The browser is read-only and never sends a wallet transaction.

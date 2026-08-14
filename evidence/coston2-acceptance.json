@@ -1,0 +1,36 @@
+{
+  "schema": "continuity.coston2.evidence.v1",
+  "generatedAt": "2026-08-14T02:22:48Z",
+  "network": { "name": "Flare Coston2", "chainId": 114, "explorer": "https://coston2-explorer.flare.network" },
+  "disclosure": "Simulated FCC TEEs are used. This proves protocol integration and signed state transitions, not hardware-backed confidentiality.",
+  "applicationId": "0x569f078a46d54c8228d4a986d2c421f1504a6456bb83d125982b0bfeb5d90b8c",
+  "controller": "0x50D2871f491EC42F2a4fB5198308Dcf9A5c532fC",
+  "extensionId": 66240,
+  "machines": { "primary": "0xe1f73e51c4b8ddbef6131f4bd3839c85cff9b3c6", "recovery": "0x693535e87de176f4019bb790e45bd85c27192b3a" },
+  "finalState": { "epoch": 2, "stateRoot": "0xf0ad19af3ddec5b11da7ce52edae3500b90ad258465fdb3efb3374521ef9b379", "activeTee": "0x693535e87de176f4019bb790e45bd85c27192b3a", "recoveryTee": "0xe1f73e51c4b8ddbef6131f4bd3839c85cff9b3c6" },
+  "transactions": {
+    "snapshotRequest": "0xa6336fdc8d80b6465ec02e1b3cbbe5826a34164f0806b34c1dae37be8d60ebd3",
+    "snapshotCommit": "0xe911f8884151c62d2dc8f2a0dacc3057191a32c6bc60b6d21962f1e401f59a51",
+    "recoveryRequest": "0x74244ecfe77d76bb1adba2c4d264932691c4e2ce8890afcc9c4b86f2ccd53c3c",
+    "recoveryArm": "0xf26300d2a66fce6db58acbbf5d0bd2ec90e5be42f0b20f7b22ac485347ba9218",
+    "recoveryActivation": "0xfd10d1e98cadd4448264a682503142eb1fe87ce31741d7d583a72821570d12e6",
+    "continuationRequest": "0x42ca907276e93a9dc946c78f889aff4d45e6e1f1990474d5a1cf97fc463eaecb",
+    "continuationCommit": "0x2b829d7688596bfe7fcfb2cf38355afe421834a29433e47253bc8cb19c5432c3"
+  },
+  "signedResults": {
+    "snapshot": { "status": 1, "submissionTag": "threshold", "dataSha256": "d67425a2dcd49d35167dd9287d7c4da72fd38542a275084e768451824389bad5", "signatureSha256": "94d102004828b171b97fa2d3daaa3c29dcf1f18059e4c9c1aea01ba0fbacf8fb", "proxySignatureSha256": "415677378ebf845a953f82b28f9ab88c4ef42479c925c228fb289c8168bdb9a2" },
+    "recovery": { "status": 1, "submissionTag": "threshold", "dataSha256": "133c44013f7292f0823b3fd65da16fa837e21fe3621110a18c2fe440bdef4f66", "signatureSha256": "6629da5253a20f75a8acdbd23d1f44fd30c1ded8ef3fd01c878df3551f14d0e4", "proxySignatureSha256": "a91b9e04ef1f9a02a0c8c513774793a078e928684de42332989eb731e264e227" },
+    "continuation": { "status": 1, "submissionTag": "threshold", "dataSha256": "317e141b253439c6f2a4d933a77bb272a0c8a698f3ac0fc7672b5392984e26d4", "signatureSha256": "5898ac3c6df6d8ea3e63c4d1137d82f33a3b69a4dda77aa6b142edcd97c45ff7", "proxySignatureSha256": "4ee872c1413e3d7d133aa3bb90227d80f9996edf014f3472feff242e98c39890" }
+  },
+  "negativeReceipts": {
+    "replayProtection": { "transaction": "0x148a99f6de94d37a6de0609a1fc0f51cf6b60d7da937d08ac205956b3e44ca6f", "status": 0, "revert": "ResultAlreadyConsumed(bytes32)" },
+    "ciphertextSubstitution": { "transaction": "0x8fc86bb1ed736b4c90993fac2a9e1cb6ea15c879a052b6e8576e5786f7f3d83b", "status": 0, "revert": "SnapshotDigestMismatch()" }
+  },
+  "unprovenClaims": ["Live stale-epoch rejection receipt", "Live competing-fork rejection receipt"],
+  "links": {
+    "controller": "https://coston2-explorer.flare.network/address/0x50D2871f491EC42F2a4fB5198308Dcf9A5c532fC",
+    "snapshotCommit": "https://coston2-explorer.flare.network/tx/0xe911f8884151c62d2dc8f2a0dacc3057191a32c6bc60b6d21962f1e401f59a51",
+    "recoveryActivation": "https://coston2-explorer.flare.network/tx/0xfd10d1e98cadd4448264a682503142eb1fe87ce31741d7d583a72821570d12e6",
+    "continuationCommit": "https://coston2-explorer.flare.network/tx/0x2b829d7688596bfe7fcfb2cf38355afe421834a29433e47253bc8cb19c5432c3"
+  }
+}
