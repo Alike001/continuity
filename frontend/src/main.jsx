@@ -4,6 +4,7 @@ import './styles.css'
 
 const evidence = {
   rpcUrl: 'https://coston2-api.flare.network/ext/bc/C/rpc',
+  stateServiceUrl: import.meta.env.VITE_STATE_SERVICE_URL ?? 'http://127.0.0.1:8787',
   controller: '0x50D2871f491EC42F2a4fB5198308Dcf9A5c532fC',
   snapshotRequestTx: '0xa6336fdc8d80b6465ec02e1b3cbbe5826a34164f0806b34c1dae37be8d60ebd3',
   snapshotCommitTx: '0xe911f8884151c62d2dc8f2a0dacc3057191a32c6bc60b6d21962f1e401f59a51',
@@ -52,11 +53,19 @@ function App() {
   const verifyLive = async () => {
     setLiveCheck({ state: 'loading', message: 'Reading controller and FCC manager state…' })
     try {
-      const checks = await readLiveState()
+      let checks
+      let source
+      try {
+        checks = checksFromState(await readServiceState())
+        source = 'indexed state service'
+      } catch {
+        checks = await readLiveState()
+        source = 'direct Coston2 RPC fallback'
+      }
       const failed = checks.filter((check) => !check.ok)
       setLiveCheck({
         state: failed.length ? 'fail' : 'pass',
-        message: failed.length ? failed.map((check) => check.label).join(', ') : 'Coston2 state matches the recorded epoch-02 acceptance.',
+        message: failed.length ? failed.map((check) => check.label).join(', ') : `Coston2 state matches the recorded epoch-02 acceptance via ${source}.`,
       })
     } catch (error) {
       setLiveCheck({ state: 'fail', message: error instanceof Error ? error.message : 'Live verification failed.' })
@@ -172,6 +181,28 @@ async function callAt(to, selector, args = '') {
 function addressArg(address) { return address.toLowerCase().replace(/^0x/, '').padStart(64, '0') }
 function decodeAddress(value) { return `0x${value.slice(-40)}` }
 function decodeWord(value) { return value.slice(-64) }
+
+async function readServiceState() {
+  const response = await fetch(`${evidence.stateServiceUrl}/api/state`)
+  if (!response.ok) throw new Error(`State service returned HTTP ${response.status}.`)
+  const body = await response.json()
+  if (body.stale || !body.state) throw new Error(body.error || 'State service has no fresh state.')
+  return body.state
+}
+
+function checksFromState(state) {
+  return [
+    { label: 'chain ID', ok: state.chainId === 114 },
+    { label: 'controller code', ok: state.controllerCode === true },
+    { label: 'epoch 02', ok: state.epoch === 2 },
+    { label: 'state root', ok: state.stateRoot.toLowerCase() === evidence.root.toLowerCase() },
+    { label: 'active TEE', ok: state.activeTee.toLowerCase() === evidence.active.toLowerCase() },
+    { label: 'recovery TEE', ok: state.recoveryTee.toLowerCase() === evidence.recoveryFinal.toLowerCase() },
+    { label: 'no pending action', ok: /^0x0+$/.test(state.pendingSnapshotAction) && /^0x0+$/.test(state.pendingRecoveryAction) },
+    { label: 'recovery unarmed', ok: state.recoveryArmed === false },
+    { label: 'FCC machines production', ok: state.machineStatus.active === 2 && state.machineStatus.recovery === 2 },
+  ]
+}
 
 async function readLiveState() {
   const [chainId, code, manager, epoch, root, active, recovery, pendingSnapshot, pendingRecovery, armed] = await Promise.all([

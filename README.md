@@ -33,3 +33,11 @@ cd frontend
 npm install
 npm run dev
 ```
+
+For a local backend boundary, start the read-only Coston2 state service in a second terminal before opening the runbook:
+
+```bash
+node scripts/state-service.mjs
+```
+
+It polls the deployed controller and FlareTeeManager, writes the last verified response to ignored `.fcc-work/indexer-state.json`, and serves `/health` and `/api/state` on `http://127.0.0.1:8787`. The browser uses this cached service for live verification and falls back to a direct public RPC read if the service is unavailable. This service is intentionally read-only. It does not submit wallet transactions or claim to be the finished recovery orchestrator.

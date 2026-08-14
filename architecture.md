@@ -69,6 +69,10 @@ The application shell is the landing experience. It reads indexed state and pres
 
 The runbook also exposes an explicit `VERIFY LIVE COSTON2 STATE` action. This is a manual, read-only preflight against the public Coston2 RPC. It checks the controller bytecode, chain ID, epoch, accepted root, active and recovery TEE IDs, pending-action gates, recovery arm, and FCC manager status. It is an operator proof tool, not the normal read path. A production deployment should move these reads behind the indexed backend described below and retain this direct RPC check as an operator diagnostic.
 
+### Read-only state service
+
+The current backend slice is a small polling service in `scripts/state-service.mjs`. It reads the controller and FlareTeeManager through JSON-RPC, caches the last successful response under ignored `.fcc-work/`, and exposes `/api/state` plus `/health`. The frontend consumes this service for its live verification action and uses the public RPC only as a visible fallback when the service is unavailable. This is a verified cache boundary, not yet a log indexer or recovery orchestrator. Event indexing, encrypted snapshot storage, and permissioned mutation submission remain separate work.
+
 ## Forward paths
 
 ### Journal mutation
