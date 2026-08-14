@@ -47,9 +47,14 @@ export function createCastSender(config = DEFAULTS) {
   return async (job) => {
     if (!config.privateKey) throw new Error('executor key is not configured')
     const args = [config.controller, 'commitSnapshot(bytes,bytes32,string,uint8,bytes)', job.resultData, job.actionId, job.submissionTag, String(job.status), job.signature, '--rpc-url', config.rpcUrl, '--private-key', config.privateKey, '--json']
-    const { stdout } = await execFileAsync(process.env.CAST_BIN ?? 'cast', ['send', ...args], { maxBuffer: 2 * 1024 * 1024 })
-    const receipt = JSON.parse(stdout)
-    return { txHash: receipt.transactionHash ?? receipt.transaction_hash ?? receipt.hash, receipt }
+    try {
+      const { stdout } = await execFileAsync(process.env.CAST_BIN ?? 'cast', ['send', ...args], { maxBuffer: 2 * 1024 * 1024 })
+      const receipt = JSON.parse(stdout)
+      return { txHash: receipt.transactionHash ?? receipt.transaction_hash ?? receipt.hash, receipt }
+    } catch (cause) {
+      const detail = typeof cause?.stderr === 'string' ? cause.stderr.trim() : 'cast send failed'
+      throw new Error(detail || 'cast send failed')
+    }
   }
 }
 
@@ -114,7 +119,8 @@ export function createOrchestrator({ config = DEFAULTS, sender = createCastSende
       if (result.receipt?.status !== undefined && !['0x1', '1', 1, true].includes(result.receipt.status)) throw new Error('transaction receipt reported failure')
       job.state = 'submitted'; job.txHash = result.txHash; job.receipt = result.receipt ?? null; job.updatedAt = new Date().toISOString(); await persist(job)
     } catch (cause) {
-      job.state = 'failed'; job.error = cause instanceof Error ? cause.message : String(cause); job.updatedAt = new Date().toISOString(); await persist(job)
+      const rawError = cause instanceof Error ? cause.message : String(cause)
+      job.state = 'failed'; job.error = config.privateKey ? rawError.replaceAll(config.privateKey, '[redacted-executor-key]') : rawError; job.updatedAt = new Date().toISOString(); await persist(job)
     }
     return job
   }

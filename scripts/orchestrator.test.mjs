@@ -58,3 +58,17 @@ test('orchestrator reconciles a submitted job after restart', async () => {
   assert.equal(restarted.get(payload.actionId).state, 'succeeded')
   await rm(dataDir, { recursive: true, force: true })
 })
+
+test('orchestrator redacts executor keys from persisted failures', async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'continuity-orchestrator-'))
+  const privateKey = 'private-executor-key'
+  const orchestrator = createOrchestrator({
+    config: { dataDir, operatorToken: 'secret', execute: true, privateKey },
+    snapshotChecker: async () => {},
+    sender: async () => { throw new Error(`cast failed with ${privateKey}`) },
+  })
+  const job = await orchestrator.enqueue(payload)
+  assert.equal(job.state, 'failed')
+  assert.equal(job.error.includes(privateKey), false)
+  await rm(dataDir, { recursive: true, force: true })
+})
