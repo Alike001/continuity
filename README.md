@@ -31,6 +31,8 @@ FCC machines in this release are simulated TEEs. This proves Flare protocol inte
 
 ## Run the frontend
 
+Hosted runbook: [continuity-teal.vercel.app](https://continuity-teal.vercel.app)
+
 ```bash
 cd frontend
 npm install
@@ -110,7 +112,8 @@ Onchain state contains ownership, registered machines, epochs, roots, action gat
 ## Limitations
 
 - Simulated FCC machines are used for the hackathon proof.
-- Stable named FCC proxy endpoints and a hosted frontend are not included in this repository state.
+- The hosted runbook is available at [continuity-teal.vercel.app](https://continuity-teal.vercel.app).
+- The original Coston2 machine pair is paused while fresh machine registration is being resolved with Flare. The browser keeps the verified recorded acceptance path available and labels live machine state honestly.
 - The guarded submission service is designed for a localhost operator, not an internet-facing deployment.
 - Stale-epoch and competing-fork rejection are covered by deterministic controller tests. Separate live receipts are not claimed.
 
