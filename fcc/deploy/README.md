@@ -13,6 +13,8 @@ source .env.coston2
 ./scripts/fcc/preflight.sh
 ```
 
+For a fresh local setup, copy `fcc/deploy/.env.example` into an ignored file such as `.fcc-work/coston2.env`, fill the public deployment values and local secret variables, then source that file before running the scripts. The example intentionally contains empty secret fields, never real credentials.
+
 The preflight pins chain ID 114 and the live manager at `0x1a9C4A0f9D76c0b1D91d22E24E573a9b377618aE`. It rejects the old manager, missing contract code, a controller bound to another manager, placeholder proxy URLs, and non-HTTPS public proxies. It sends no transaction.
 
 Build the exact Go image with:

@@ -22,6 +22,7 @@ check_proxy() {
   local label="$1" url="$2"
   [[ "$url" == https://* ]] || die "$label proxy must use stable HTTPS"
   [[ "$url" != *example.invalid* ]] || die "$label proxy is still a placeholder"
+  [[ "$url" != *trycloudflare.com ]] || die "$label proxy uses a quick Cloudflare tunnel; use a named stable tunnel"
   local info
   info="$(curl --fail --silent --show-error --max-time 10 "$url/info")"
   local extension_id tee_id

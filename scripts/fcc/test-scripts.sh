@@ -51,4 +51,10 @@ if FLARE_TEE_MANAGER=0x4444444444444444444444444444444444444444 "$ROOT/scripts/f
 fi
 grep -q 'refusing stale FlareTeeManager' "$TEST_ROOT/stale.error"
 
+if PRIMARY_PROXY_URL=https://quick.trycloudflare.com "$ROOT/scripts/fcc/preflight.sh" >"$TEST_ROOT/quick.log" 2>"$TEST_ROOT/quick.error"; then
+  printf 'quick tunnel unexpectedly passed\n' >&2
+  exit 1
+fi
+grep -q 'quick Cloudflare tunnel' "$TEST_ROOT/quick.error"
+
 printf 'FCC script tests passed.\n'
