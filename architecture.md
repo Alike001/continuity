@@ -71,7 +71,7 @@ The runbook also exposes an explicit `VERIFY LIVE COSTON2 STATE` action. This is
 
 ### Read-only state service
 
-The current backend slice is a small polling service in `scripts/state-service.mjs`. It reads the controller and FlareTeeManager through JSON-RPC, caches the last successful response under ignored `.fcc-work/`, and exposes `/api/state` plus `/health`. The frontend consumes this service for its live verification action and uses the public RPC only as a visible fallback when the service is unavailable. This is a verified cache boundary, not yet a log indexer or recovery orchestrator. Event indexing, encrypted snapshot storage, and permissioned mutation submission remain separate work.
+The current backend slice is a small polling service in `scripts/state-service.mjs`. It reads the controller and FlareTeeManager through JSON-RPC, caches the last successful response under ignored `.fcc-work/`, indexes controller lineage events in RPC-safe 30-block chunks, and exposes `/api/state`, `/api/events`, and `/health`. The frontend consumes this service for live verification and reports the indexed event count. It uses the public RPC only as a visible fallback when the service is unavailable. This is a verified cache and event-history boundary, not yet a snapshot store or recovery orchestrator. Encrypted snapshot storage and permissioned mutation submission remain separate work.
 
 ## Forward paths
 

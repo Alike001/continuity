@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createStateStore, startServer } from './state-service.mjs'
+import { createStateStore, readEvents, startServer } from './state-service.mjs'
 
 const controller = '0x50D2871f491EC42F2a4fB5198308Dcf9A5c532fC'
 const manager = '0x1a9C4A0f9D76c0b1D91d22E24E573a9b377618aE'
@@ -14,6 +14,7 @@ const word = (value) => `0x${value.replace(/^0x/, '').padStart(64, '0')}`
 const addressWord = (value) => word(value)
 
 function fakeRpc(method, params) {
+  if (method === 'eth_getLogs') return Promise.resolve([])
   if (method === 'eth_chainId') return Promise.resolve('0x72')
   if (method === 'eth_blockNumber') return Promise.resolve('0x1234')
   if (method === 'eth_getCode') return Promise.resolve('0x6000')
@@ -52,4 +53,19 @@ test('state service exposes health and cached state endpoints', async () => {
   assert.equal(response.state.epoch, 2)
   server.close()
   await rm(directory, { recursive: true, force: true })
+})
+
+test('event indexer decodes committed lineage events', async () => {
+  const action = word('a'.repeat(64))
+  const epoch = word('2')
+  const stateRoot = word('b'.repeat(64))
+  const parentRoot = word('c'.repeat(64))
+  const digest = word('d'.repeat(64))
+  const log = {
+    blockNumber: '0x20', logIndex: '0x1', transactionHash: '0xtx',
+    topics: ['0x333e2014e6dacd7c5cc740e6ffaaba73782b1a0f767a3dff4c4918bd123bdbec', action, epoch, stateRoot],
+    data: `${parentRoot.slice(2)}${digest.slice(2)}${addressWord(active).slice(2)}${addressWord(recovery).slice(2)}`,
+  }
+  const events = await readEvents(async () => [log], { controller }, '0x20', '0x20')
+  assert.deepEqual(events[0].args, { actionId: action, epoch: 2, stateRoot, parentRoot, ciphertextDigest: digest, sourceTee: active, recoveryTee: recovery })
 })

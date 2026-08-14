@@ -56,8 +56,9 @@ function App() {
       let checks
       let source
       try {
-        checks = checksFromState(await readServiceState())
-        source = 'indexed state service'
+        const serviceSnapshot = await readServiceSnapshot()
+        checks = checksFromState(serviceSnapshot.state)
+        source = `indexed state service, ${serviceSnapshot.events.length} controller events indexed`
       } catch {
         checks = await readLiveState()
         source = 'direct Coston2 RPC fallback'
@@ -182,12 +183,12 @@ function addressArg(address) { return address.toLowerCase().replace(/^0x/, '').p
 function decodeAddress(value) { return `0x${value.slice(-40)}` }
 function decodeWord(value) { return value.slice(-64) }
 
-async function readServiceState() {
-  const response = await fetch(`${evidence.stateServiceUrl}/api/state`)
-  if (!response.ok) throw new Error(`State service returned HTTP ${response.status}.`)
-  const body = await response.json()
-  if (body.stale || !body.state) throw new Error(body.error || 'State service has no fresh state.')
-  return body.state
+async function readServiceSnapshot() {
+  const [stateResponse, eventsResponse] = await Promise.all([fetch(`${evidence.stateServiceUrl}/api/state`), fetch(`${evidence.stateServiceUrl}/api/events`)])
+  if (!stateResponse.ok || !eventsResponse.ok) throw new Error(`State service returned HTTP ${stateResponse.ok ? eventsResponse.status : stateResponse.status}.`)
+  const [stateBody, eventsBody] = await Promise.all([stateResponse.json(), eventsResponse.json()])
+  if (stateBody.stale || eventsBody.stale || !stateBody.state) throw new Error(stateBody.error || eventsBody.error || 'State service has no fresh state.')
+  return { state: stateBody.state, events: eventsBody.events ?? [], indexedThrough: eventsBody.indexedThrough }
 }
 
 function checksFromState(state) {
