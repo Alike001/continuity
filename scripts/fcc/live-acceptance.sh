@@ -24,6 +24,8 @@ POLL_SECONDS="${POLL_SECONDS:-10}"
 ENTRY_TEXT="${ENTRY_TEXT:-continuity-live-acceptance-1}"
 CONTINUATION_ENTRY_TEXT="${CONTINUATION_ENTRY_TEXT:-continuity-live-continuation-2}"
 INSTRUCTION_FEE_WEI="${INSTRUCTION_FEE_WEI:-1000000}"
+ERROR_ENTRY_HEX="${ERROR_ENTRY_HEX:-0xdeadbeef}"
+ERROR_PROXY_URL="${ERROR_PROXY_URL:-$RECOVERY_PROXY_URL}"
 
 need jq
 need curl
@@ -35,6 +37,7 @@ is_address "$CONTROLLER_ADDRESS" || die "CONTROLLER_ADDRESS must be set to the d
 [[ "$EXTENSION_ID" =~ ^[1-9][0-9]*$ ]] || die "EXTENSION_ID must be the decimal extension ID"
 [[ "$PRIMARY_PROXY_URL" == https://* ]] || die "PRIMARY_PROXY_URL must be stable HTTPS"
 [[ "$RECOVERY_PROXY_URL" == https://* ]] || die "RECOVERY_PROXY_URL must be stable HTTPS"
+[[ "$ERROR_PROXY_URL" == https://* ]] || die "ERROR_PROXY_URL must be stable HTTPS"
 require_coston2
 
 load_manifest() {
@@ -163,6 +166,37 @@ commit_snapshot() {
 	record snapshot_commit_tx "$tx"; printf 'Snapshot committed: tx=%s\n' "$tx"
 }
 
+request_snapshot_error() {
+	local execute="${1:-}" tx action
+	load_manifest
+	[[ -z "$(step error_action)" ]] || die "error snapshot already recorded; resume with snapshot-error-commit"
+	[[ "$ERROR_ENTRY_HEX" == 0x* && "$ERROR_ENTRY_HEX" != 0x ]] || die "ERROR_ENTRY_HEX must be non-empty 0x bytes"
+	printf 'Terminal-error target: active=%s invalid-entry-bytes=%s\n' \
+		"$(cast call "$CONTROLLER_ADDRESS" 'activeTee()(address)' --rpc-url "$CHAIN_URL")" \
+		"$(( (${#ERROR_ENTRY_HEX}-2) / 2 ))"
+	[[ "$execute" == "--execute" ]] || { printf 'No transaction was sent.\n'; return 0; }
+	require_execute "$execute"; owner_check
+	tx="$(send "$CONTROLLER_ADDRESS" 'requestSnapshot(bytes)' "$ERROR_ENTRY_HEX" --value "$INSTRUCTION_FEE_WEI")"
+	action="$(action_from_receipt "$tx" 'SnapshotRequested(bytes32,uint64,uint64,address,address,bytes32)')"
+	is_hash "$action" || die "SnapshotRequested action ID not found in $tx"
+	record error_request_tx "$tx"; record error_action "$action"
+	printf 'Terminal-error snapshot requested: tx=%s action=%s\n' "$tx" "$action"
+}
+
+commit_snapshot_error() {
+	local execute="${1:-}" action response data status signature tag tx
+	load_manifest; action="$(step error_action)"; is_hash "$action" || die "run snapshot-error-request first"
+	response="$(wait_result "$ERROR_PROXY_URL" "$action")"; save_response error_snapshot "$response" >/dev/null
+	status="$(jq -r '.result.status' <<<"$response")"; data="$(jq -r '.result.data' <<<"$response")"; signature="$(jq -r '.signature' <<<"$response")"; tag="$(jq -r '.result.submissionTag' <<<"$response")"
+	printf 'Signed terminal-error result: status=%s data-bytes=%s\n' "$status" "$(( (${#data}-2) / 2 ))"
+	[[ "$status" == "0" ]] || die "expected FCC terminal error status 0, got $status"
+	[[ "$execute" == "--execute" ]] || { printf 'No transaction was sent.\n'; return 0; }
+	require_execute "$execute"; owner_check
+	tx="$(send "$CONTROLLER_ADDRESS" 'failSnapshot(bytes,bytes32,string,uint8,bytes)' "$data" "$action" "$tag" "$status" "$signature")"
+	record error_fail_tx "$tx"; record error_action ""
+	printf 'Terminal-error snapshot cleared: tx=%s\n' "$tx"
+}
+
 request_continuation() {
 	local execute="${1:-}" tx action keyx keyy ciphertext public_key primary recovery state
 	local -a key_coordinates=()
@@ -267,10 +301,12 @@ case "$COMMAND" in
 	status) status ;;
 	snapshot-request) request_snapshot "${1:-}" ;;
 	snapshot-commit) commit_snapshot "${1:-}" ;;
+	snapshot-error-request) request_snapshot_error "${1:-}" ;;
+	snapshot-error-commit) commit_snapshot_error "${1:-}" ;;
 	recovery-request) request_recovery "${1:-}" ;;
 	recovery-arm) arm_recovery "${1:-}" ;;
 	recovery-activate) activate_recovery "${1:-}" ;;
 	continuation-request) request_continuation "${1:-}" ;;
 	continuation-commit) commit_continuation "${1:-}" ;;
-	*) die "usage: live-acceptance.sh status|snapshot-request|snapshot-commit|recovery-request|recovery-arm|recovery-activate|continuation-request|continuation-commit [--execute]" ;;
+	*) die "usage: live-acceptance.sh status|snapshot-request|snapshot-commit|snapshot-error-request|snapshot-error-commit|recovery-request|recovery-arm|recovery-activate|continuation-request|continuation-commit [--execute]" ;;
 esac
