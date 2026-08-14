@@ -41,3 +41,12 @@ node scripts/state-service.mjs
 ```
 
 It polls the deployed controller and FlareTeeManager, writes the last verified response to ignored `.fcc-work/indexer-state.json`, indexes controller lineage events to `.fcc-work/indexer-events.json`, and serves `/health`, `/api/state`, and `/api/events` on `http://127.0.0.1:8787`. Coston2 limits log queries to 30 blocks, so the indexer scans in safe chunks. Set `CONTINUITY_FROM_BLOCK` to the deployment or first-event block when operating beyond the default bounded lookback. The browser uses this cached service for live verification and reports how many controller events were indexed. It falls back to a direct public RPC read if the service is unavailable. This service is intentionally read-only. It does not submit wallet transactions or claim to be the finished recovery orchestrator.
+
+The opaque snapshot store is a separate local service. It verifies Ethereum Keccak-256 against the digest supplied by a signed FCC result, writes ciphertext atomically under that digest, and never decrypts or signs payloads:
+
+```bash
+cd extension
+CONTINUITY_SNAPSHOT_DIR=../.fcc-work/snapshots go run ./cmd/snapshot-store.go
+```
+
+It exposes `PUT` and `GET /snapshots/<0x-digest>` on `127.0.0.1:8790`. The current service is intentionally local and unauthenticated. Permissioned operator submission and production authentication are still unimplemented.

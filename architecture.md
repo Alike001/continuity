@@ -73,6 +73,8 @@ The runbook also exposes an explicit `VERIFY LIVE COSTON2 STATE` action. This is
 
 The current backend slice is a small polling service in `scripts/state-service.mjs`. It reads the controller and FlareTeeManager through JSON-RPC, caches the last successful response under ignored `.fcc-work/`, indexes controller lineage events in RPC-safe 30-block chunks, and exposes `/api/state`, `/api/events`, and `/health`. The frontend consumes this service for live verification and reports the indexed event count. It uses the public RPC only as a visible fallback when the service is unavailable. This is a verified cache and event-history boundary, not yet a snapshot store or recovery orchestrator. Encrypted snapshot storage and permissioned mutation submission remain separate work.
 
+The opaque snapshot store is implemented in `extension/internal/snapshotstore.go` and served by `extension/cmd/snapshot-store.go`. It verifies Ethereum Keccak-256 against the signed result’s ciphertext digest, writes up to 256 KiB atomically under the normalized digest, and returns the exact bytes on retrieval. It never decrypts or signs. The local HTTP surface is intentionally unauthenticated for this milestone. Production authentication, access policy, and permissioned transaction submission remain separate work.
+
 ## Forward paths
 
 ### Journal mutation
