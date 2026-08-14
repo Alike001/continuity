@@ -17,6 +17,36 @@
     "continuationRequest": "0x42ca907276e93a9dc946c78f889aff4d45e6e1f1990474d5a1cf97fc463eaecb",
     "continuationCommit": "0x2b829d7688596bfe7fcfb2cf38355afe421834a29433e47253bc8cb19c5432c3"
   },
+  "decodedEvents": [
+    {
+      "name": "SnapshotCommitted",
+      "transaction": "0xe911f8884151c62d2dc8f2a0dacc3057191a32c6bc60b6d21962f1e401f59a51",
+      "actionId": "0x9cb242bfe2743052658cfc3d1972bd0bbc08c65fd833b6050effe1583dd5189e",
+      "epoch": 1,
+      "stateRoot": "0x9019e8a3a81f8c704b03a95eeed7d5c6f87f8ca02822f54d986afaa8dd7b0acd",
+      "parentRoot": "0x86782f68d0d320f87f2952c271e9266d932ef4834a7e30f673bb4404cf333cd6",
+      "sourceTee": "0xe1f73e51c4b8ddbef6131f4bd3839c85cff9b3c6",
+      "recoveryTee": "0x693535e87de176f4019bb790e45bd85c27192b3a"
+    },
+    {
+      "name": "RecoveryActivated",
+      "transaction": "0xfd10d1e98cadd4448264a682503142eb1fe87ce31741d7d583a72821570d12e6",
+      "previousTee": "0xe1f73e51c4b8ddbef6131f4bd3839c85cff9b3c6",
+      "activeTee": "0x693535e87de176f4019bb790e45bd85c27192b3a",
+      "epoch": 1,
+      "stateRoot": "0x9019e8a3a81f8c704b03a95eeed7d5c6f87f8ca02822f54d986afaa8dd7b0acd"
+    },
+    {
+      "name": "SnapshotCommitted",
+      "transaction": "0x2b829d7688596bfe7fcfb2cf38355afe421834a29433e47253bc8cb19c5432c3",
+      "actionId": "0xa47d75739a1f9f870b0a2836b33788cf5b303405dfe8be3bab23abc48921c37a",
+      "epoch": 2,
+      "stateRoot": "0xf0ad19af3ddec5b11da7ce52edae3500b90ad258465fdb3efb3374521ef9b379",
+      "parentRoot": "0x9019e8a3a81f8c704b03a95eeed7d5c6f87f8ca02822f54d986afaa8dd7b0acd",
+      "sourceTee": "0x693535e87de176f4019bb790e45bd85c27192b3a",
+      "recoveryTee": "0xe1f73e51c4b8ddbef6131f4bd3839c85cff9b3c6"
+    }
+  ],
   "signedResults": {
     "snapshot": { "status": 1, "submissionTag": "threshold", "dataSha256": "d67425a2dcd49d35167dd9287d7c4da72fd38542a275084e768451824389bad5", "signatureSha256": "94d102004828b171b97fa2d3daaa3c29dcf1f18059e4c9c1aea01ba0fbacf8fb", "proxySignatureSha256": "415677378ebf845a953f82b28f9ab88c4ef42479c925c228fb289c8168bdb9a2" },
     "recovery": { "status": 1, "submissionTag": "threshold", "dataSha256": "133c44013f7292f0823b3fd65da16fa837e21fe3621110a18c2fe440bdef4f66", "signatureSha256": "6629da5253a20f75a8acdbd23d1f44fd30c1ded8ef3fd01c878df3551f14d0e4", "proxySignatureSha256": "a91b9e04ef1f9a02a0c8c513774793a078e928684de42332989eb731e264e227" },
