@@ -4,7 +4,7 @@ import './styles.css'
 
 const evidence = {
   rpcUrl: 'https://coston2-api.flare.network/ext/bc/C/rpc',
-  stateServiceUrl: import.meta.env.VITE_STATE_SERVICE_URL ?? 'http://127.0.0.1:8787',
+  stateServiceUrl: import.meta.env.VITE_STATE_SERVICE_URL ?? '',
   controller: '0x50D2871f491EC42F2a4fB5198308Dcf9A5c532fC',
   snapshotRequestTx: '0xa6336fdc8d80b6465ec02e1b3cbbe5826a34164f0806b34c1dae37be8d60ebd3',
   snapshotCommitTx: '0xe911f8884151c62d2dc8f2a0dacc3057191a32c6bc60b6d21962f1e401f59a51',
@@ -57,6 +57,7 @@ function App() {
       let checks
       let source
       try {
+        if (!evidence.stateServiceUrl) throw new Error('No hosted state service configured.')
         const serviceSnapshot = await readServiceSnapshot()
         checks = checksFromState(serviceSnapshot.state)
         source = `indexed state service, ${serviceSnapshot.events.length} controller events indexed`
