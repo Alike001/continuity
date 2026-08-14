@@ -120,6 +120,20 @@ save_response() {
 	printf '%s\n' "$result"
 }
 
+active_proxy_url() {
+	local active primary recovery
+	active="$(cast call "$CONTROLLER_ADDRESS" 'activeTee()(address)' --rpc-url "$CHAIN_URL")"
+	primary="$(tee_id_from_info "$PRIMARY_PROXY_URL")"
+	recovery="$(tee_id_from_info "$RECOVERY_PROXY_URL")"
+	if [[ "${active,,}" == "${primary,,}" ]]; then
+		printf '%s\n' "$PRIMARY_PROXY_URL"
+	elif [[ "${active,,}" == "${recovery,,}" ]]; then
+		printf '%s\n' "$RECOVERY_PROXY_URL"
+	else
+		die "active TEE $active does not match either configured FCC proxy"
+	fi
+}
+
 request_snapshot() {
 	local execute="${1:-}" tx action keyx keyy ciphertext public_key
 	local -a key_coordinates=()
@@ -148,9 +162,10 @@ request_snapshot() {
 }
 
 commit_snapshot() {
-	local execute="${1:-}" action response data status signature tag tx
+	local execute="${1:-}" action response data status signature tag tx proxy
 	load_manifest; action="$(step snapshot_action)"; is_hash "$action" || die "run snapshot-request first"
-	response="$(wait_result "$PRIMARY_PROXY_URL" "$action")"; save_response snapshot "$response" >/dev/null
+	proxy="$(active_proxy_url)"
+	response="$(wait_result "$proxy" "$action")"; save_response snapshot "$response" >/dev/null
 	status="$(jq -r '.result.status' <<<"$response")"; data="$(jq -r '.result.data' <<<"$response")"; signature="$(jq -r '.signature' <<<"$response")"; tag="$(jq -r '.result.submissionTag' <<<"$response")"
 	printf 'Signed snapshot result: status=%s data-bytes=%s\n' "$status" "$(( (${#data}-2) / 2 ))"
 	[[ "$execute" == "--execute" ]] || { printf 'No transaction was sent.\n'; return 0; }
